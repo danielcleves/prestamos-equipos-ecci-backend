@@ -56,3 +56,43 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+## Estrategia de ramas
+
+Flujo de trabajo del repositorio: `main` (producción) → `develop` (integración + QA) → `feature/*` (desarrollo de cada tarea).
+
+```
+main ───────► producción (solo DevOps)
+   ▲
+   │ merge cuando QA aprueba develop
+develop ────► integración + QA principal
+   ▲
+   │ PR desde feature
+feature/* ──► trabajo del desarrollador
+```
+
+### Ciclo de trabajo
+
+1. El desarrollador crea `feature/*` desde `develop`, desarrolla su tarea y abre un **Pull Request hacia `develop`**.
+2. **QA aprueba/rechaza el PR.** El dev solo lo solicita; es QA quien decide si el código entra a `develop`.
+3. El PR aprobado se fusiona a `develop`. Es ahí donde **QA lo prueba de verdad**, con el código integrado junto a las demás features.
+4. Cuando QA valida todo en `develop`, se hace el merge de `develop` → `main`.
+5. **DevOps** despliega la aplicación desde `main`.
+
+### Las dos validaciones de QA
+
+QA interviene en dos momentos distintos dentro del flujo:
+
+| Momento | Dónde | Qué hace QA |
+|---|---|---|
+| Al PR | revisa `feature/*` antes de entrar a `develop` | Aprobación de código (conflictos, buenas prácticas, tests) |
+| Tras el merge | ya en `develop` con todo integrado | Prueba funcional de la aplicación y OK para pasar a `main` |
+
+### Reglas de aprobación por nivel
+
+Cada salto de nivel requiere la aprobación del rol correspondiente:
+
+- `feature/* → develop`: aprueba **QA** (el PR del desarrollador).
+- `develop → main`: aprueba **QA** (validación funcional) y lo ejecuta **DevOps**.
