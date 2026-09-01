@@ -22,15 +22,17 @@ services:
       prestamos_db:
         condition: service_healthy
     environment:
-      APP_ENV: ${APP_ENV:-local}
-      APP_DEBUG: ${APP_DEBUG:-true}
-      APP_URL: ${APP_URL:-http://localhost:8000}
-      DB_CONNECTION: mysql
+      # Aqui va SOLO la topologia de Docker: donde vive MySQL dentro de la red
+      # de contenedores. El resto de la configuracion (APP_ENV, APP_DEBUG,
+      # DB_CONNECTION, DB_DATABASE, credenciales) la lee Laravel del .env.
+      #
+      # No anadir mas variables aqui: Docker las expone en $$_SERVER, que PHP lee
+      # con mas prioridad que las de phpunit.xml. Cualquier variable que se
+      # declare en este bloque se impone sobre la suite de pruebas, y las que
+      # controlan la base de datos harian que los tests corran contra MySQL y
+      # que RefreshDatabase borre los datos de desarrollo en cada ejecucion.
       DB_HOST: prestamos_db
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-prestamos_equipos}
-      DB_USERNAME: ${DB_USERNAME:-prestamos_user}
-      DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el archivo .env (copia .env.example)}
     networks:
       - prestamos_net
 
