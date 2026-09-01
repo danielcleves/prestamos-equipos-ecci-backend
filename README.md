@@ -25,19 +25,21 @@ Este repositorio es el encargado de la **lógica de negocio y los datos** (API +
 - **Laravel 13** (framework PHP).
 - **PHP 8.3+**.
 - API REST (consumida por el frontend).
-- Base de datos: SQLite (por defecto) / configurable vía `.env`.
+- **MySQL 8.0** como base de datos.
+- **Docker + Docker Compose** para el entorno de desarrollo.
 
 ## ✅ Requisitos previos
 
-- **PHP** 8.3 o superior.
-- **Composer** 2.x.
+- **Docker Desktop** (incluye Docker Compose).
 
-Verifica que estén instalados:
+Verifica que esté disponible:
 
 ```sh
-php -v
-composer -V
+docker --version
+docker compose version
 ```
+
+> 💡 No necesitas instalar PHP, Composer ni MySQL en tu equipo: todo corre dentro de contenedores.
 
 ## 🚀 Instalación y puesta en marcha
 
@@ -46,20 +48,62 @@ composer -V
 git clone git@github.com:danielcleves/prestamos-equipos-ecci-backend.git
 cd prestamos-equipos-ecci-backend
 
-# 2. Instalar dependencias
-composer install
-
-# 3. Configurar variables de entorno
+# 2. Crear el archivo de entorno
 cp .env.example .env
 
-# 4. Generar la clave de la aplicación
-php artisan key:generate
-
-# 5. Levantar el servidor de desarrollo
-php artisan serve
+# 3. Levantar el entorno (backend + MySQL)
+docker compose up -d --build
 ```
 
-El backend quedará disponible en `http://127.0.0.1:8000` (o el puerto que definas).
+El backend queda disponible en `http://localhost:8000`.
+
+El primer arranque tarda varios minutos, porque descarga las imágenes e instala las dependencias. Los siguientes son cuestión de segundos.
+
+Al levantar, el contenedor se encarga automáticamente de:
+
+1. Instalar las dependencias de Composer.
+2. Generar la `APP_KEY` si no existe.
+3. Esperar a que MySQL acepte conexiones.
+4. Aplicar las migraciones pendientes.
+
+No hace falta ejecutar `composer install`, `php artisan key:generate` ni `php artisan migrate` a mano.
+
+### Puertos
+
+| Servicio | En el host | Variable en `.env` |
+|---|---|---|
+| API (backend) | `8000` | `APP_PORT` |
+| MySQL | `3307` (solo `127.0.0.1`) | `DB_PORT_HOST` |
+
+MySQL se publica en el `3307` para no chocar con una instalación local en el `3306`. Si tienes alguno de esos puertos ocupado, cámbialo en tu `.env` **sin modificar `docker-compose.yml`**.
+
+> ⚠️ Cada desarrollador levanta **su propia base de datos** local, con sus propios datos. No se comparte entre el equipo: para partir de datos comunes se usan los *seeders* del repositorio.
+
+### Comandos útiles
+
+```sh
+docker compose logs -f prestamos_backend                  # ver logs
+docker compose exec prestamos_backend php artisan test    # ejecutar pruebas
+docker compose exec prestamos_backend php artisan <cmd>   # cualquier comando artisan
+docker compose restart                                    # tras un git pull con migraciones nuevas
+docker compose down                                       # bajar (conserva la base de datos)
+```
+
+## 🔌 Endpoints disponibles
+
+| Método | Endpoint | Descripción | Respuesta |
+|---|---|---|---|
+| `GET` | `/api/ping` | Verifica que la API está operativa | `{"status": "ok"}` |
+| `GET` | `/up` | Healthcheck nativo de Laravel | `200 OK` |
+
+Para comprobar que el entorno quedó bien levantado:
+
+```sh
+curl http://localhost:8000/api/ping
+# {"status":"ok"}
+```
+
+Es el chequeo más rápido para **QA y despliegue**: si `/api/ping` responde, la API está arriba y atendiendo peticiones.
 
 ## 🌿 Estrategia de ramas
 
@@ -102,12 +146,15 @@ Cada salto de nivel requiere la aprobación del rol correspondiente:
 ## 📁 Estructura del proyecto
 
 ```
-app/           Lógica de la aplicación (controllers, models, services)
-routes/        Definición de rutas y endpoints de la API
-database/      Migraciones, seeds y factories
-config/        Configuración del framework
-public/        Punto de entrada pública (index.php)
-tests/         Pruebas automáticas
+app/                  Lógica de la aplicación (controllers, models, services)
+routes/               Definición de rutas y endpoints de la API
+database/             Migraciones, seeds y factories
+config/               Configuración del framework
+public/               Punto de entrada pública (index.php)
+tests/                Pruebas automáticas
+docker/               Script de arranque del contenedor (entrypoint)
+Dockerfile            Imagen del backend (PHP 8.3 + extensiones)
+docker-compose.yml    Servicios del entorno: backend + MySQL
 ```
 
 ## 👥 Participantes
