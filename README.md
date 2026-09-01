@@ -78,25 +78,25 @@ feature/* ──► trabajo del desarrollador
 ### Ciclo de trabajo
 
 1. El desarrollador crea `feature/*` desde `develop`, desarrolla su tarea y abre un **Pull Request hacia `develop`**.
-2. **QA aprueba/rechaza el PR.** El dev solo lo solicita; es QA quien decide si el código entra a `develop`.
-3. El PR aprobado se fusiona a `develop`. Es ahí donde **QA lo prueba de verdad**, con el código integrado junto a las demás features.
+2. El desarrollador solicita el PR hacia `develop`. El **Líder Técnico hace el code review técnico** (conflictos, buenas prácticas, tests) y lo aprueba para que entre a `develop`.
+3. Una vez aprobado el code review, el PR se fusiona a `develop`. Es ahí donde **QA hace la validación funcional**, probando el código ya integrado junto a las demás features.
 4. Cuando QA valida todo en `develop`, se hace el merge de `develop` → `main`.
 5. **DevOps** despliega la aplicación desde `main`.
 
-### Las dos validaciones de QA
+### Code review y validación funcional
 
-QA interviene en dos momentos distintos dentro del flujo:
+Se distinguen dos momentos distintos dentro del flujo:
 
-| Momento | Dónde | Qué hace QA |
+| Momento | Dónde | Quién / Qué |
 |---|---|---|
-| Al PR | revisa `feature/*` antes de entrar a `develop` | Aprobación de código (conflictos, buenas prácticas, tests) |
-| Tras el merge | ya en `develop` con todo integrado | Prueba funcional de la aplicación y OK para pasar a `main` |
+| Al PR (code review) | revisa `feature/*` antes de entrar a `develop` | **Líder Técnico**: revisión técnica (conflictos, buenas prácticas, tests) |
+| Tras el merge (validación funcional) | ya en `develop` con todo integrado | **QA**: prueba funcional de la aplicación y OK para pasar a `main` |
 
 ### Reglas de aprobación por nivel
 
 Cada salto de nivel requiere la aprobación del rol correspondiente:
 
-- `feature/* → develop`: aprueba **QA** (el PR del desarrollador).
+- `feature/* → develop`: aprueba el **Líder Técnico** (code review técnico) y **QA** valida funcionalmente lo integrado en `develop`.
 - `develop → main`: aprueba **QA** (validación funcional) y lo ejecuta **DevOps**.
 
 ## 📁 Estructura del proyecto
