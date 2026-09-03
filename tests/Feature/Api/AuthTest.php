@@ -97,6 +97,24 @@ class AuthTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_login_rechaza_usuario_desactivado(): void
+    {
+        User::factory()->inactive()->create([
+            'email' => 'jose@ecci.edu.co',
+            'password' => Hash::make('password123'),
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'jose@ecci.edu.co',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonStructure(['message', 'errors' => ['email']]);
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
     public function test_login_con_correo_inexistente_devuelve_el_mismo_error(): void
     {
         $this->crearUsuario();

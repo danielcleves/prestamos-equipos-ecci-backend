@@ -29,6 +29,14 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->is_active) {
+            // Distinto del mensaje anterior: en este punto ya demostro conocer
+            // la contrasena correcta, asi que no hay nada nuevo que enumerar.
+            throw ValidationException::withMessages([
+                'email' => ['Tu cuenta esta desactivada. Contacta a un administrador.'],
+            ]);
+        }
+
         $token = $user->createToken($credentials['device_name'] ?? 'api');
 
         return response()->json([
