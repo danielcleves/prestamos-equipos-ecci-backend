@@ -1,0 +1,73 @@
+name: prestamos-equipos-ecci
+
+services:
+  prestamos_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    restart: unless-stopped
+    ports:
+      # Cambia APP_PORT en tu .env si el 8000 ya esta ocupado en tu maquina.
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - .:/var/www
+      # Volumenes anonimos: evitan que el bind mount de arriba tape las
+      # dependencias instaladas dentro de la imagen.
+      - /var/www/vendor
+      - /var/www/node_modules
+    depends_on:
+      prestamos_db:
+        condition: service_healthy
+    environment:
+      # Aqui va SOLO la topologia de Docker: donde vive MySQL dentro de la red
+      # de contenedores. El resto de la configuracion (APP_ENV, APP_DEBUG,
+      # DB_CONNECTION, DB_DATABASE, credenciales) la lee Laravel del .env.
+      #
+      # No anadir mas variables aqui: Docker las expone en $$_SERVER, que PHP lee
+      # con mas prioridad que las de phpunit.xml. Cualquier variable que se
+      # declare en este bloque se impone sobre la suite de pruebas, y las que
+      # controlan la base de datos harian que los tests corran contra MySQL y
+      # que RefreshDatabase borre los datos de desarrollo en cada ejecucion.
+      DB_HOST: prestamos_db
+      DB_PORT: 3306
+    networks:
+      - prestamos_net
+
+  prestamos_db:
+    image: mysql:8.0
+    restart: unless-stopped
+    ports:
+      # Solo accesible desde esta maquina, no desde la red local.
+      # 3307 en el host para no chocar con un MySQL/XAMPP ya instalado.
+      - "127.0.0.1:${DB_PORT_HOST:-3307}:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-prestamos_equipos}
+      MYSQL_USER: ${DB_USERNAME:-prestamos_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el archivo .env (copia .env.example)}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Define DB_ROOT_PASSWORD en el archivo .env (copia .env.example)}
+    volumes:
+      - prestamos_db_data:/var/lib/mysql
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP: el servidor temporal que MySQL levanta durante la
+      # inicializacion solo escucha por socket, asi que no da un OK prematuro.
+      test:
+        [
+          "CMD-SHELL",
+          'mysqladmin ping -h 127.0.0.1 -u root -p"$$MYSQL_ROOT_PASSWORD" --silent',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - prestamos_net
+
+volumes:
+  prestamos_db_data:
+
+networks:
+  prestamos_net:
+    driver: bridge
