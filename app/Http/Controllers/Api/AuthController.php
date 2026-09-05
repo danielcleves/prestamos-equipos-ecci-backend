@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginRequest;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,7 +42,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token->plainTextToken,
-            'user' => $this->userPayload($user),
+            'user' => new UserResource($user),
         ]);
     }
 
@@ -65,23 +66,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => $this->userPayload($request->user()),
+            'user' => new UserResource($request->user()),
         ]);
-    }
-
-    /**
-     * Forma unica del usuario en las respuestas de la API. Se mantiene en un
-     * solo sitio para que login y me no se desincronicen.
-     *
-     * @return array<string, mixed>
-     */
-    private function userPayload(User $user): array
-    {
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'roles' => $user->getRoleNames(),
-        ];
     }
 }
