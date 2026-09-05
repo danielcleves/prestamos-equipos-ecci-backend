@@ -87,43 +87,17 @@ class UserController extends Controller
 
     public function desactivar(Request $request, User $usuario): JsonResponse
     {
-        if ($error = $this->rechazarSiEsUnoMismo($request, $usuario, 'desactivar')) {
-            return $error;
+        if ($usuario->is($request->user())) {
+            // Sin este freno, un admin podria desactivarse a si mismo y
+            // quedar sin forma de revertirlo (is_active solo se puede
+            // cambiar desde este endpoint, que requiere ser admin activo).
+            return response()->json([
+                'message' => 'No puedes desactivar tu propia cuenta.',
+            ], 422);
         }
 
         $usuario->update(['is_active' => false]);
 
         return response()->json(['data' => new UserResource($usuario)]);
-    }
-
-    public function destroy(Request $request, User $usuario): JsonResponse
-    {
-        if ($error = $this->rechazarSiEsUnoMismo($request, $usuario, 'eliminar')) {
-            return $error;
-        }
-
-        // Soft delete: un usuario eliminado puede tener historial asociado
-        // mas adelante (prestamos, etc.) que no queremos perder ni dejar
-        // huerfano. deleted_at tambien lo saca del login (User::where(...)
-        // ya no lo encuentra) y de los listados de este controller.
-        $usuario->delete();
-
-        return response()->json(null, 204);
-    }
-
-    /**
-     * Sin este freno, un admin podria desactivarse o eliminarse a si mismo y
-     * quedar sin forma de revertirlo (ambas acciones requieren ser admin
-     * activo).
-     */
-    private function rechazarSiEsUnoMismo(Request $request, User $usuario, string $accion): ?JsonResponse
-    {
-        if ($usuario->is($request->user())) {
-            return response()->json([
-                'message' => "No puedes {$accion} tu propia cuenta.",
-            ], 422);
-        }
-
-        return null;
     }
 }

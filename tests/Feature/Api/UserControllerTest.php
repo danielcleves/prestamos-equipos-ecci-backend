@@ -189,41 +189,4 @@ class UserControllerTest extends TestCase
 
         $this->assertTrue($admin->fresh()->is_active);
     }
-
-    // --- Eliminar ---
-
-    public function test_admin_puede_eliminar_un_usuario(): void
-    {
-        $this->actingAsAdmin();
-        $usuario = User::factory()->create();
-
-        $this->deleteJson("/api/usuarios/{$usuario->id}")->assertNoContent();
-
-        $this->assertSoftDeleted($usuario);
-        // Soft delete: el registro sigue en la base de datos, pero
-        // desaparece de listados y consultas normales.
-        $this->getJson('/api/usuarios')->assertJsonCount(1, 'data');
-        $this->getJson("/api/usuarios/{$usuario->id}")->assertStatus(404);
-    }
-
-    public function test_usuario_eliminado_no_puede_iniciar_sesion(): void
-    {
-        $this->actingAsAdmin();
-        $usuario = User::factory()->create(['email' => 'eliminado@ecci.edu.co']);
-        $this->deleteJson("/api/usuarios/{$usuario->id}");
-
-        $this->postJson('/api/login', [
-            'email' => 'eliminado@ecci.edu.co',
-            'password' => 'password',
-        ])->assertStatus(422);
-    }
-
-    public function test_admin_no_puede_eliminarse_a_si_mismo(): void
-    {
-        $admin = $this->actingAsAdmin();
-
-        $this->deleteJson("/api/usuarios/{$admin->id}")->assertStatus(422);
-
-        $this->assertDatabaseHas('users', ['id' => $admin->id, 'deleted_at' => null]);
-    }
 }

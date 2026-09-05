@@ -19,6 +19,7 @@ Route::middleware('auth:sanctum')->group(function () {
 // HU-02: gestion de usuarios y roles, exclusiva del rol admin.
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::apiResource('usuarios', UserController::class)
+        ->except('destroy')
         ->parameters(['usuarios' => 'usuario']);
 
     Route::patch('/usuarios/{usuario}/activar', [UserController::class, 'activar']);
