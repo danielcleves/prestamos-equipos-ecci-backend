@@ -8,12 +8,13 @@ gestionar usuarios y roles").
 
 | Método | Endpoint | Descripción |
 |---|---|---|
-| `GET` | `/api/usuarios` | Lista todos los usuarios |
+| `GET` | `/api/usuarios` | Lista usuarios, paginada (`?per_page=`, default 15, máx 100) |
 | `POST` | `/api/usuarios` | Registra un usuario nuevo (requiere `role`) |
 | `GET` | `/api/usuarios/{usuario}` | Consulta un usuario puntual |
 | `PUT` / `PATCH` | `/api/usuarios/{usuario}` | Modifica nombre, correo, contraseña y/o rol |
 | `PATCH` | `/api/usuarios/{usuario}/activar` | Reactiva la cuenta |
 | `PATCH` | `/api/usuarios/{usuario}/desactivar` | Desactiva la cuenta (bloquea el login) |
+| `DELETE` | `/api/usuarios/{usuario}` | Elimina el usuario (soft delete, ver abajo) |
 
 ## Roles disponibles
 
@@ -25,11 +26,15 @@ de la HU-02). Cada usuario tiene **un solo rol a la vez**: `PUT/PATCH` con
 ## Reglas
 
 - Sin token o sin rol `admin` → `401`/`403`.
-- Un admin **no puede desactivarse a sí mismo** (`422`), para no quedar sin
-  forma de revertirlo.
+- Un admin **no puede desactivarse ni eliminarse a sí mismo** (`422`), para
+  no quedar sin forma de revertirlo.
 - Un usuario con `is_active = false` no puede iniciar sesión (ver
   `docs/api/autenticacion.md`), aunque su token previo siga siendo válido
   hasta que expire o se revoque — desactivar no cierra sesiones activas.
+- **Eliminar es soft delete** (`deleted_at`), no borrado físico: el registro
+  sigue en la base de datos (por si más adelante tiene préstamos u otro
+  historial asociado), pero desaparece de `GET /api/usuarios` y de
+  `GET /api/usuarios/{usuario}` (404), y ya no puede iniciar sesión.
 
 ## Ejemplos
 
@@ -77,10 +82,24 @@ curl -i -X PATCH http://localhost:8000/api/usuarios/5/desactivar \
   -H "Authorization: Bearer <token-admin>"
 ```
 
-## Pendiente
+**Eliminar un usuario (soft delete)**
 
-- No hay endpoint para eliminar usuarios (no lo pide la HU; se puede
-  desactivar en su lugar).
-- No hay paginación en `GET /api/usuarios` — aceptable mientras el volumen de
-  usuarios sea chico (proyecto universitario); si crece, agregar
-  `paginate()` más adelante.
+```sh
+curl -i -X DELETE http://localhost:8000/api/usuarios/5 \
+  -H "Authorization: Bearer <token-admin>"
+# 204 No Content
+```
+
+**Listar con paginación**
+
+```sh
+curl -i "http://localhost:8000/api/usuarios?per_page=5" \
+  -H "Authorization: Bearer <token-admin>"
+```
+
+```json
+{
+  "data": [ /* hasta 5 usuarios */ ],
+  "meta": { "current_page": 1, "last_page": 4, "per_page": 5, "total": 20 }
+}
+```
