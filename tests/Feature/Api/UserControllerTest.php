@@ -57,7 +57,26 @@ class UserControllerTest extends TestCase
             ->assertJsonCount(3, 'data') // el admin + los 2 creados
             ->assertJsonStructure([
                 'data' => [['id', 'name', 'email', 'is_active', 'roles']],
-            ]);
+                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            ])
+            ->assertJsonPath('meta.total', 3);
+    }
+
+    public function test_listado_de_usuarios_esta_paginado(): void
+    {
+        $this->actingAsAdmin();
+        User::factory()->count(19)->create(); // + admin = 20
+
+        $primeraPagina = $this->getJson('/api/usuarios')->assertOk();
+        $primeraPagina->assertJsonCount(15, 'data')
+            ->assertJsonPath('meta.total', 20)
+            ->assertJsonPath('meta.last_page', 2);
+
+        $this->getJson('/api/usuarios?per_page=5')
+            ->assertOk()
+            ->assertJsonCount(5, 'data')
+            ->assertJsonPath('meta.per_page', 5)
+            ->assertJsonPath('meta.last_page', 4);
     }
 
     public function test_admin_puede_consultar_un_usuario(): void
@@ -169,5 +188,42 @@ class UserControllerTest extends TestCase
             ->assertStatus(422);
 
         $this->assertTrue($admin->fresh()->is_active);
+    }
+
+    // --- Eliminar ---
+
+    public function test_admin_puede_eliminar_un_usuario(): void
+    {
+        $this->actingAsAdmin();
+        $usuario = User::factory()->create();
+
+        $this->deleteJson("/api/usuarios/{$usuario->id}")->assertNoContent();
+
+        $this->assertSoftDeleted($usuario);
+        // Soft delete: el registro sigue en la base de datos, pero
+        // desaparece de listados y consultas normales.
+        $this->getJson('/api/usuarios')->assertJsonCount(1, 'data');
+        $this->getJson("/api/usuarios/{$usuario->id}")->assertStatus(404);
+    }
+
+    public function test_usuario_eliminado_no_puede_iniciar_sesion(): void
+    {
+        $this->actingAsAdmin();
+        $usuario = User::factory()->create(['email' => 'eliminado@ecci.edu.co']);
+        $this->deleteJson("/api/usuarios/{$usuario->id}");
+
+        $this->postJson('/api/login', [
+            'email' => 'eliminado@ecci.edu.co',
+            'password' => 'password',
+        ])->assertStatus(422);
+    }
+
+    public function test_admin_no_puede_eliminarse_a_si_mismo(): void
+    {
+        $admin = $this->actingAsAdmin();
+
+        $this->deleteJson("/api/usuarios/{$admin->id}")->assertStatus(422);
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'deleted_at' => null]);
     }
 }
