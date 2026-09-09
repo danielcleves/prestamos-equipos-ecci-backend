@@ -40,22 +40,11 @@ mkdir -p \
 espera_bd() {
     intento=0
     maximo=60
-    while ! php -r '
-        try {
-            new PDO(
-                sprintf("mysql:host=%s;port=%s;dbname=%s",
-                    getenv("DB_HOST") ?: "127.0.0.1",
-                    getenv("DB_PORT") ?: "3306",
-                    getenv("DB_DATABASE")
-                ),
-                getenv("DB_USERNAME"),
-                getenv("DB_PASSWORD")
-            );
-            exit(0);
-        } catch (Throwable $e) {
-            exit(1);
-        }
-    ' 2>/dev/null; do
+    # esperar-bd.php toma la conexion de la configuracion de Laravel (.env), de
+    # modo que aqui no se duplican host, usuario ni contrasena, y no hace falta
+    # inyectarlos como variables de entorno del contenedor (eso romperia la
+    # suite de pruebas, ver el comentario en docker-compose.yml).
+    while ! php docker/esperar-bd.php >/dev/null 2>&1; do
         intento=$((intento + 1))
         if [ "$intento" -ge "$maximo" ]; then
             echo "[entrypoint] ERROR: la base de datos no respondio tras $maximo intentos."

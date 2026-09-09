@@ -105,6 +105,14 @@ curl http://localhost:8000/api/ping
 
 Es el chequeo más rápido para **QA y despliegue**: si `/api/ping` responde, la API está arriba y atendiendo peticiones.
 
+## 🔐 Autenticación
+
+La API usa **Laravel Sanctum en modo tokens (Bearer)**: `POST /api/login`,
+`POST /api/logout` y `GET /api/me`.
+
+📖 Documentación completa (reglas, ejemplos de respuesta, cómo probar con
+curl/Postman): [`docs/api/autenticacion.md`](docs/api/autenticacion.md)
+
 ## 🌿 Estrategia de ramas
 
 Flujo de trabajo del repositorio: `main` (producción) → `develop` (integración + QA) → `feature/*` (desarrollo de cada tarea).
@@ -149,6 +157,7 @@ Cada salto de nivel requiere la aprobación del rol correspondiente:
 app/                  Lógica de la aplicación (controllers, models, services)
 routes/               Definición de rutas y endpoints de la API
 database/             Migraciones, seeds y factories
+docs/api/             Documentación detallada de la API (endpoints, ejemplos, cómo probar)
 config/               Configuración del framework
 public/               Punto de entrada pública (index.php)
 tests/                Pruebas automáticas

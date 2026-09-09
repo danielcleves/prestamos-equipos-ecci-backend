@@ -31,3 +31,7 @@ Thumbs.db
 # Contexto interno del proyecto: decisiones en discusion y notas del equipo.
 # Se mantiene local, no se versiona.
 CONTEXTO-PROYECTO.md
+
+# Plan personal de funciones DevOps/Desarrollo: incluye la frontera de
+# responsabilidades con el rol formal de DevOps. Se mantiene local.
+PLAN-DEVOPS-Y-DESARROLLO.md
