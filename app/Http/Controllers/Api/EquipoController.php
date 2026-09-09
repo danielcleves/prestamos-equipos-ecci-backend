@@ -13,7 +13,9 @@ class EquipoController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $perPage = min($request->integer('per_page', 15), 100);
+        // max() evita que un per_page negativo o 0 llegue a paginate() (ver
+        // el mismo arreglo en UserController::index, senalado en review).
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
 
         $equipos = Equipo::with('categoria')->orderBy('nombre')->paginate($perPage);
 

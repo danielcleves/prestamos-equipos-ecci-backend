@@ -58,6 +58,21 @@ class EquipoControllerTest extends TestCase
         $this->getJson('/api/equipos')->assertOk();
     }
 
+    public function test_per_page_invalido_se_normaliza_en_vez_de_fallar(): void
+    {
+        $this->actingAsUsuario();
+
+        // Negativo y cero: sin max(1, ...), llegaban a paginate() como tal
+        // (500 en MySQL con LIMIT negativo, o meta.last_page = 0 con cero).
+        $this->getJson('/api/equipos?per_page=-5')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        $this->getJson('/api/equipos?per_page=0')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+    }
+
     public function test_usuario_sin_rol_admin_no_puede_registrar_equipos(): void
     {
         $this->actingAsUsuario();
