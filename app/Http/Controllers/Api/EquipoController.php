@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreEquipoRequest;
+use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
+use App\Http\Resources\HistorialEstadoResource;
 use App\Models\Equipo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,5 +47,28 @@ class EquipoController extends Controller
     public function show(Equipo $equipo): JsonResponse
     {
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
+    }
+
+    public function actualizarEstado(UpdateEquipoEstadoRequest $request, Equipo $equipo): JsonResponse
+    {
+        if ($equipo->estado === Equipo::ESTADO_TERMINAL) {
+            // HU-04: "un equipo dado de baja no debe poder ser prestado" —
+            // se cumple haciendo el estado irreversible, no solo bloqueando
+            // la transicion puntual a 'en_prestamo'.
+            return response()->json([
+                'message' => 'Un equipo dado de baja no puede cambiar de estado.',
+            ], 422);
+        }
+
+        $equipo->update(['estado' => $request->validated('estado')]);
+
+        return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
+    }
+
+    public function historial(Equipo $equipo): JsonResponse
+    {
+        return response()->json([
+            'data' => HistorialEstadoResource::collection($equipo->historialEstados()->with('usuario')->get()),
+        ]);
     }
 }
