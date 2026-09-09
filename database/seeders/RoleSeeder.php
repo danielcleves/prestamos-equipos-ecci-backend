@@ -8,10 +8,10 @@ use Spatie\Permission\Models\Role;
 class RoleSeeder extends Seeder
 {
     /**
-     * Roles oficiales del proyecto (decision cerrada, ver CONTEXTO-PROYECTO.md
-     * seccion 3). Los permisos de cada uno se definen aparte, cuando el
-     * equipo valide la matriz de la seccion 5 — este seeder solo garantiza
-     * que los roles existan.
+     * Roles oficiales del proyecto (decision cerrada, ver docs/decisiones.md).
+     * Los permisos de cada uno se definen aparte, cuando el equipo valide la
+     * matriz propuesta en ese mismo archivo — este seeder solo garantiza que
+     * los roles existan.
      */
     private const ROLES = ['admin', 'encargado', 'usuario'];
 
