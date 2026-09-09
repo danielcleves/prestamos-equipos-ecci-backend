@@ -17,10 +17,11 @@ gestionar usuarios y roles").
 
 ## Roles disponibles
 
-`admin`, `encargado`, `usuario` (decisión cerrada, ver `CONTEXTO-PROYECTO.md`
-sección 3 — corresponden a administrador / personal de préstamo / solicitante
-de la HU-02). Cada usuario tiene **un solo rol a la vez**: `PUT/PATCH` con
-`role` reemplaza el rol anterior, no lo acumula.
+`admin`, `encargado`, `usuario` (decisión cerrada, ver
+[`docs/decisiones.md`](../decisiones.md) — corresponden a administrador /
+personal de préstamo / solicitante de la HU-02). Cada usuario tiene **un
+solo rol a la vez**: `PUT/PATCH` con `role` reemplaza el rol anterior, no lo
+acumula.
 
 ## Reglas
 
