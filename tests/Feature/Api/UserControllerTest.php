@@ -79,6 +79,28 @@ class UserControllerTest extends TestCase
             ->assertJsonPath('meta.last_page', 4);
     }
 
+    public function test_per_page_invalido_se_normaliza_en_vez_de_fallar(): void
+    {
+        $this->actingAsAdmin();
+        User::factory()->count(4)->create(); // + admin = 5
+
+        // Negativo: sin el max(1, ...), esto llegaba a paginate(-5) y MySQL
+        // rechaza LIMIT negativos con un 500.
+        $this->getJson('/api/usuarios?per_page=-5')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        // Cero: sin el freno, el paginator devuelve meta.last_page = 0.
+        $this->getJson('/api/usuarios?per_page=0')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        // String no numerico: (int) lo vuelve 0, mismo caso que arriba.
+        $this->getJson('/api/usuarios?per_page=abc')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+    }
+
     public function test_admin_puede_consultar_un_usuario(): void
     {
         $this->actingAsAdmin();

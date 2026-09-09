@@ -10,7 +10,7 @@ protegida.
 |---|---|---|---|
 | `POST` | `/api/login` | No | Valida credenciales y emite un token |
 | `POST` | `/api/logout` | Sí | Revoca **solo** el token usado en la petición |
-| `GET` | `/api/me` | Sí | Devuelve el usuario autenticado (id, name, email, roles) |
+| `GET` | `/api/me` | Sí | Devuelve el usuario autenticado (id, name, email, is_active, roles) |
 
 ## Reglas a tener en cuenta
 
@@ -30,6 +30,7 @@ protegida.
     "id": 1,
     "name": "Test User",
     "email": "test@example.com",
+    "is_active": true,
     "roles": ["encargado"]
   }
 }

@@ -14,7 +14,10 @@ class UserController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $perPage = min($request->integer('per_page', 15), 100);
+        // max() evita que un per_page negativo o 0 llegue a paginate() (MySQL
+        // rechaza LIMIT negativos con un 500, y con 0 el paginator devuelve
+        // meta.last_page = 0). min() sigue topando por arriba.
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
 
         $usuarios = User::with('roles')->orderBy('name')->paginate($perPage);
 
