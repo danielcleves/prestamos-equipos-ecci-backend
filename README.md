@@ -113,6 +113,13 @@ La API usa **Laravel Sanctum en modo tokens (Bearer)**: `POST /api/login`,
 📖 Documentación completa (reglas, ejemplos de respuesta, cómo probar con
 curl/Postman): [`docs/api/autenticacion.md`](docs/api/autenticacion.md)
 
+## 👤 Gestión de usuarios y roles
+
+`GET|POST /api/usuarios`, `PUT|PATCH /api/usuarios/{usuario}`, `PATCH
+/api/usuarios/{usuario}/activar|desactivar` — exclusivo del rol `admin`.
+
+📖 Documentación completa: [`docs/api/usuarios.md`](docs/api/usuarios.md)
+
 ## 🌿 Estrategia de ramas
 
 Flujo de trabajo del repositorio: `main` (producción) → `develop` (integración + QA) → `feature/*` (desarrollo de cada tarea).
