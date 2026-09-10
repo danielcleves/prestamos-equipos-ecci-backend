@@ -35,7 +35,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/equipos/{equipo}/historial', [EquipoController::class, 'historial']);
 });
 
-// HU-04: cambiar el estado de un equipo, exclusivo de admin.
+// Escritura sobre el catalogo, exclusiva de admin: registrar (HU-03) y
+// cambiar el estado (HU-04).
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/equipos', [EquipoController::class, 'store']);
     Route::patch('/equipos/{equipo}/estado', [EquipoController::class, 'actualizarEstado']);
