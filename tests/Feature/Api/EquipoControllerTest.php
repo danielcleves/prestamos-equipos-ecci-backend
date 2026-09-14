@@ -71,6 +71,11 @@ class EquipoControllerTest extends TestCase
         $this->getJson('/api/equipos?per_page=0')
             ->assertOk()
             ->assertJsonPath('meta.per_page', 1);
+
+        // Mayor a 100: min(..., 100) acota el tamano maximo de pagina a 100.
+        $this->getJson('/api/equipos?per_page=150')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
     }
 
     public function test_usuario_sin_rol_admin_no_puede_registrar_equipos(): void
