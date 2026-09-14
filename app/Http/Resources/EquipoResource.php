@@ -16,10 +16,10 @@ class EquipoResource extends JsonResource
             'id' => $this->id,
             'codigo' => $this->codigo,
             'nombre' => $this->nombre,
-            'categoria' => [
+            'categoria' => $this->whenLoaded('categoria', fn () => [
                 'id' => $this->categoria->id,
                 'nombre' => $this->categoria->nombre,
-            ],
+            ]),
             'descripcion' => $this->descripcion,
             'estado' => $this->estado,
             'observaciones' => $this->observaciones,
