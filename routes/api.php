@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,4 +25,15 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
     Route::patch('/usuarios/{usuario}/activar', [UserController::class, 'activar']);
     Route::patch('/usuarios/{usuario}/desactivar', [UserController::class, 'desactivar']);
+});
+
+// HU-03: catalogo de equipos. Consultar es para cualquier autenticado (lo
+// va a necesitar HU-05 mas adelante); registrar es exclusivo de admin.
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/equipos', [EquipoController::class, 'index']);
+    Route::get('/equipos/{equipo}', [EquipoController::class, 'show']);
+});
+
+Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::post('/equipos', [EquipoController::class, 'store']);
 });

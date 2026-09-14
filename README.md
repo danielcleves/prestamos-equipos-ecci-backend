@@ -120,6 +120,13 @@ curl/Postman): [`docs/api/autenticacion.md`](docs/api/autenticacion.md)
 
 📖 Documentación completa: [`docs/api/usuarios.md`](docs/api/usuarios.md)
 
+## 💻 Catálogo de equipos
+
+`GET /api/equipos` (cualquier autenticado), `GET /api/equipos/{equipo}`,
+`POST /api/equipos` (exclusivo `admin`).
+
+📖 Documentación completa: [`docs/api/equipos.md`](docs/api/equipos.md)
+
 ## 🌿 Estrategia de ramas
 
 Flujo de trabajo del repositorio: `main` (producción) → `develop` (integración + QA) → `feature/*` (desarrollo de cada tarea).
