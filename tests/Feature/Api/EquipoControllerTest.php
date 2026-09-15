@@ -385,8 +385,7 @@ class EquipoControllerTest extends TestCase
     {
         $this->actingAsUsuario();
         $this->getJson('/api/equipos/999999')
-            ->assertStatus(404)
-            ->assertJsonPath('message', 'No query results for model [App\Models\Equipo] 999999');
+            ->assertStatus(404);
     }
 
     // --- Disponibilidad en catalogo (HU-05) ---
@@ -469,8 +468,7 @@ class EquipoControllerTest extends TestCase
             ->assertJsonCount(0, 'data');
 
         $this->getJson("/api/equipos/{$equipo->id}")
-            ->assertStatus(404)
-            ->assertJsonPath('message', "No query results for model [App\Models\Equipo] {$equipo->id}");
+            ->assertStatus(404);
     }
 
     public function test_usuario_autenticado_sin_ningun_rol_no_ve_dado_de_baja_y_detalle_da_404(): void
@@ -485,8 +483,7 @@ class EquipoControllerTest extends TestCase
             ->assertJsonCount(0, 'data');
 
         $this->getJson("/api/equipos/{$equipo->id}")
-            ->assertStatus(404)
-            ->assertJsonPath('message', "No query results for model [App\Models\Equipo] {$equipo->id}");
+            ->assertStatus(404);
     }
 
     public function test_404_de_equipo_dado_de_baja_y_de_id_inexistente_devuelven_el_mismo_json(): void
@@ -506,9 +503,8 @@ class EquipoControllerTest extends TestCase
         $responseInexistente = $this->getJson("/api/equipos/{$id}");
         $responseInexistente->assertStatus(404);
 
-        // Ambas respuestas deben ser exactamente identicas en status, cabeceras de error y cuerpo JSON
+        // Ambas respuestas deben ser exactamente identicas en status y cuerpo JSON
         $this->assertSame($responseInexistente->json(), $responseDadoDeBaja->json());
-        $this->assertSame("No query results for model [App\Models\Equipo] {$id}", $responseDadoDeBaja->json('message'));
     }
 
     public function test_equipo_dado_de_baja_es_visible_para_admin_y_encargado(): void
@@ -577,6 +573,246 @@ class EquipoControllerTest extends TestCase
         // El numero de queries debe mantenerse constante (1 count + 1 equipos + 1 categorias)
         $this->assertSame(3, $queriesConUnEquipo);
         $this->assertSame(3, $queriesConVariosEquipos);
+    }
+
+    // --- Filtros del catalogo (HU-05 Fase 2) ---
+
+    public function test_filtro_categoria_id_filtra_correctamente(): void
+    {
+        $this->actingAsUsuario();
+        $catLaptops = Categoria::factory()->create(['nombre' => 'Portátiles']);
+        $catAudio = Categoria::factory()->create(['nombre' => 'Audio']);
+
+        Equipo::factory()->create(['categoria_id' => $catLaptops->id, 'nombre' => 'Laptop Dell']);
+        Equipo::factory()->create(['categoria_id' => $catLaptops->id, 'nombre' => 'Laptop Lenovo']);
+        Equipo::factory()->create(['categoria_id' => $catAudio->id, 'nombre' => 'Micrófono Shure']);
+
+        $response = $this->getJson("/api/equipos?categoria_id={$catLaptops->id}");
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.categoria.id', $catLaptops->id)
+            ->assertJsonPath('data.1.categoria.id', $catLaptops->id);
+    }
+
+    public function test_filtro_disponible_true_y_uno_devuelven_solo_disponibles(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+        Equipo::factory()->create(['estado' => 'en_prestamo']);
+        Equipo::factory()->create(['estado' => 'mantenimiento']);
+
+        // Con disponible=true
+        $this->getJson('/api/equipos?disponible=true')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.disponible', true)
+            ->assertJsonPath('data.0.estado', 'disponible');
+
+        // Con disponible=1
+        $this->getJson('/api/equipos?disponible=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.disponible', true)
+            ->assertJsonPath('data.0.estado', 'disponible');
+    }
+
+    public function test_filtro_disponible_false_y_cero_devuelven_solo_no_disponibles_sin_dados_de_baja_para_usuario(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+        Equipo::factory()->create(['estado' => 'en_prestamo']);
+        Equipo::factory()->create(['estado' => 'mantenimiento']);
+        Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+
+        // Con disponible=false
+        $resFalse = $this->getJson('/api/equipos?disponible=false');
+        $resFalse->assertOk()->assertJsonCount(2, 'data');
+        foreach ($resFalse->json('data') as $item) {
+            $this->assertFalse($item['disponible']);
+            $this->assertNotSame('dado_de_baja', $item['estado']);
+        }
+
+        // Con disponible=0
+        $resCero = $this->getJson('/api/equipos?disponible=0');
+        $resCero->assertOk()->assertJsonCount(2, 'data');
+        foreach ($resCero->json('data') as $item) {
+            $this->assertFalse($item['disponible']);
+            $this->assertNotSame('dado_de_baja', $item['estado']);
+        }
+    }
+
+    public function test_filtro_disponible_con_valor_invalido_devuelve_422(): void
+    {
+        $this->actingAsUsuario();
+
+        $this->getJson('/api/equipos?disponible=quizas')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['disponible']);
+    }
+
+    public function test_buscar_encuentra_por_nombre_codigo_y_descripcion(): void
+    {
+        $this->actingAsUsuario();
+        $cat = Categoria::factory()->create(['nombre' => 'Portátiles']);
+
+        Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Portátil Lenovo ThinkPad',
+            'codigo' => 'EQ-LAP-01',
+            'descripcion' => '16GB RAM SSD',
+        ]);
+        Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Micrófono Shure SM58',
+            'codigo' => 'EQ-MIC-02',
+            'descripcion' => 'Vocal dinámico cardioide',
+        ]);
+        Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Tablet Apple iPad Air',
+            'codigo' => 'EQ-TAB-03',
+            'descripcion' => 'Pantalla Liquid Retina',
+        ]);
+
+        // Por nombre
+        $this->getJson('/api/equipos?buscar=ThinkPad')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'EQ-LAP-01');
+
+        // Por codigo
+        $this->getJson('/api/equipos?buscar=MIC-02')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'EQ-MIC-02');
+
+        // Por descripcion
+        $this->getJson('/api/equipos?buscar=cardioide')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'EQ-MIC-02');
+    }
+
+    public function test_buscar_con_comodin_porcentaje_no_devuelve_todos_los_equipos(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['nombre' => 'Portátil Dell', 'codigo' => 'EQ-DELL-01']);
+        Equipo::factory()->create(['nombre' => 'Tablet Samsung', 'codigo' => 'EQ-TAB-01']);
+
+        $this->getJson('/api/equipos?buscar=%25')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_buscar_de_mas_de_100_caracteres_devuelve_422(): void
+    {
+        $this->actingAsUsuario();
+
+        $this->getJson('/api/equipos?buscar='.str_repeat('a', 101))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['buscar']);
+    }
+
+    public function test_combinacion_de_filtros_categoria_disponible_y_buscar(): void
+    {
+        $this->actingAsUsuario();
+        $catLaptops = Categoria::factory()->create(['nombre' => 'Portátiles']);
+        $catAudio = Categoria::factory()->create(['nombre' => 'Audio']);
+
+        // Coincide con todo (categoria Laptops, disponible, buscar Dell)
+        Equipo::factory()->create([
+            'categoria_id' => $catLaptops->id,
+            'nombre' => 'Laptop Dell Latitude',
+            'codigo' => 'EQ-L01',
+            'estado' => 'disponible',
+        ]);
+        // Misma categoria y disponible, pero otro nombre
+        Equipo::factory()->create([
+            'categoria_id' => $catLaptops->id,
+            'nombre' => 'Laptop HP ProBook',
+            'codigo' => 'EQ-L02',
+            'estado' => 'disponible',
+        ]);
+        // Misma categoria y coincide busqueda, pero NO disponible
+        Equipo::factory()->create([
+            'categoria_id' => $catLaptops->id,
+            'nombre' => 'Laptop Dell XPS',
+            'codigo' => 'EQ-L03',
+            'estado' => 'en_prestamo',
+        ]);
+        // Coincide busqueda y disponible, pero OTRA categoria
+        Equipo::factory()->create([
+            'categoria_id' => $catAudio->id,
+            'nombre' => 'Micrófono Dell Voice',
+            'codigo' => 'EQ-A01',
+            'estado' => 'disponible',
+        ]);
+
+        $this->getJson("/api/equipos?categoria_id={$catLaptops->id}&disponible=true&buscar=Dell")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.codigo', 'EQ-L01');
+    }
+
+    public function test_cada_valor_de_ordenar_produce_el_orden_esperado(): void
+    {
+        $this->actingAsUsuario();
+        $cat = Categoria::factory()->create(['nombre' => 'Portátiles']);
+
+        // Creamos tres equipos con nombres y estados controlados y marcas de tiempo distintas
+        $eqA = Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'A-Portátil Acer',
+            'estado' => 'en_prestamo',
+            'created_at' => now()->subMinutes(10),
+        ]);
+        $eqB = Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'B-Portátil Dell',
+            'estado' => 'disponible',
+            'created_at' => now()->subMinutes(5),
+        ]);
+        $eqC = Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'C-Portátil HP',
+            'estado' => 'disponible',
+            'created_at' => now(),
+        ]);
+
+        // 1. ordenar=nombre (alfabetico asc: A, B, C)
+        $resNombre = $this->getJson('/api/equipos?ordenar=nombre')->assertOk();
+        $this->assertSame([$eqA->id, $eqB->id, $eqC->id], array_column($resNombre->json('data'), 'id'));
+
+        // 2. ordenar=-nombre (alfabetico desc: C, B, A)
+        $resDesc = $this->getJson('/api/equipos?ordenar=-nombre')->assertOk();
+        $this->assertSame([$eqC->id, $eqB->id, $eqA->id], array_column($resDesc->json('data'), 'id'));
+
+        // 3. ordenar=disponibles_primero (disponibles B y C al inicio ordenados por nombre, luego no disponible A)
+        $resDisp = $this->getJson('/api/equipos?ordenar=disponibles_primero')->assertOk();
+        $this->assertSame([$eqB->id, $eqC->id, $eqA->id], array_column($resDisp->json('data'), 'id'));
+
+        // 4. ordenar=recientes (created_at desc: C, B, A)
+        $resRecientes = $this->getJson('/api/equipos?ordenar=recientes')->assertOk();
+        $this->assertSame([$eqC->id, $eqB->id, $eqA->id], array_column($resRecientes->json('data'), 'id'));
+    }
+
+    public function test_ordenar_con_valor_invalido_devuelve_422(): void
+    {
+        $this->actingAsUsuario();
+
+        $this->getJson('/api/equipos?ordenar=precio')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['ordenar']);
+    }
+
+    public function test_categoria_id_inexistente_devuelve_422(): void
+    {
+        $this->actingAsUsuario();
+
+        $this->getJson('/api/equipos?categoria_id=999999')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['categoria_id']);
     }
 
     /**

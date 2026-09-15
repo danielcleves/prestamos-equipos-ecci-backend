@@ -89,6 +89,24 @@ class Equipo extends Model
         return $query->where('estado', '!=', self::ESTADO_DADO_DE_BAJA);
     }
 
+    /**
+     * Scope para buscar equipos por nombre, codigo o descripcion.
+     * Escapa los comodines % y _ antes de armar el LIKE.
+     *
+     * @param  Builder<Equipo>  $query
+     * @return Builder<Equipo>
+     */
+    public function scopeBuscar(Builder $query, string $texto): Builder
+    {
+        $escaped = addcslashes($texto, '%_');
+
+        return $query->where(function (Builder $q) use ($escaped) {
+            $q->where('nombre', 'LIKE', "%{$escaped}%")
+                ->orWhere('codigo', 'LIKE', "%{$escaped}%")
+                ->orWhere('descripcion', 'LIKE', "%{$escaped}%");
+        });
+    }
+
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class);
