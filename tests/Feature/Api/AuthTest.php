@@ -147,6 +147,22 @@ class AuthTest extends TestCase
             ->assertJsonValidationErrors(['email', 'password']);
     }
 
+    public function test_login_sin_datos_devuelve_mensajes_en_espanol(): void
+    {
+        $response = $this->postJson('/api/login', []);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['email', 'password']);
+
+        $message = $response->json('message');
+        $errors = json_encode($response->json('errors'));
+
+        $this->assertStringNotContainsString('The ', $message);
+        $this->assertStringNotContainsString('field is required', $message);
+        $this->assertStringNotContainsString('The ', $errors);
+        $this->assertStringNotContainsString('field is required', $errors);
+    }
+
     public function test_login_se_bloquea_tras_demasiados_intentos(): void
     {
         $this->crearUsuario();

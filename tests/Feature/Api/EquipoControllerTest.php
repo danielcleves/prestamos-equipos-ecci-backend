@@ -930,6 +930,20 @@ class EquipoControllerTest extends TestCase
         $this->assertEqualsCanonicalizing([$eq1->id, $eq2->id, $eq3->id], $todosLosIds);
     }
 
+    public function test_mensajes_de_error_de_validacion_estan_en_espanol(): void
+    {
+        $this->actingAsUsuario();
+
+        $response = $this->getJson('/api/equipos?categoria_id=999999&disponible=quizas');
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['categoria_id', 'disponible']);
+
+        $message = $response->json('message');
+        $this->assertStringNotContainsString('The selected', $message);
+        $this->assertStringNotContainsString('more errors', $message);
+    }
+
     /**
      * @return array<string, mixed>
      */
