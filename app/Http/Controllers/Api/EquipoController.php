@@ -22,7 +22,7 @@ class EquipoController extends Controller
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
         $query = Equipo::with('categoria')
-            ->when(! Equipo::puedeVerDadosDeBaja($request->user()), fn ($q) => $q->visiblesEnCatalogo())
+            ->when(! ($request->user()?->esPersonalAdministrativo() ?? false), fn ($q) => $q->visiblesEnCatalogo())
             ->when($request->filled('categoria_id'), fn ($q) => $q->where('categoria_id', $request->integer('categoria_id')))
             ->when($request->filled('disponible'), fn ($q) => $request->boolean('disponible') ? $q->disponible() : $q->noDisponible())
             ->when($request->filled('buscar'), fn ($q) => $q->buscar($request->string('buscar')->toString()));
@@ -66,7 +66,7 @@ class EquipoController extends Controller
 
     public function show(Request $request, Equipo $equipo): JsonResponse
     {
-        if (! Equipo::puedeVerDadosDeBaja($request->user()) && $equipo->isDadoDeBaja()) {
+        if (! ($request->user()?->esPersonalAdministrativo() ?? false) && $equipo->isDadoDeBaja()) {
             throw (new ModelNotFoundException)->setModel(Equipo::class, [$equipo->id]);
         }
 

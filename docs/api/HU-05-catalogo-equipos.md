@@ -41,23 +41,23 @@ Si el frontend envía un parámetro vacío (por ejemplo `categoria_id=` o `dispo
 
 ## 3. Campos de la respuesta y reglas de disponibilidad
 
-Cada equipo en `data` (o en el detalle puntual) expone los siguientes campos:
+Cada equipo en `data` (o en el detalle puntual) expone los siguientes campos (para rol `admin` o `encargado` incluye `observaciones`; para rol `usuario` o usuarios sin rol administrativo, `observaciones` se omite por completo):
 
 ```json
 {
   "id": 1,
   "codigo": "EQ-PORT-01",
   "nombre": "Portátil Dell Latitude 3420",
-  "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
-  "estado": "disponible",
-  "disponible": true,
-  "puede_solicitarse": true,
-  "estado_disponibilidad": "disponible",
-  "observaciones": "Cargador original incluido",
   "categoria": {
     "id": 1,
     "nombre": "Portátil"
-  }
+  },
+  "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
+  "disponible": true,
+  "puede_solicitarse": true,
+  "estado_disponibilidad": "disponible",
+  "estado": "disponible",
+  "observaciones": "Cargador original incluido. Calibrado Sep 2026."
 }
 ```
 
@@ -68,25 +68,33 @@ Cada equipo en `data` (o en el detalle puntual) expone los siguientes campos:
 - `estado_disponibilidad` (string): Código de estado de disponibilidad para la interfaz:
   - `"disponible"` si `estado === 'disponible'`
   - `"no_disponible"` si el equipo no está disponible (`en_prestamo`, `mantenimiento`, `dado_de_baja`)
+- `observaciones` (string|null, condicional): Campo interno de uso exclusivo para personal administrativo (`admin` y `encargado`). Para el rol `usuario` (solicitante) y cualquier usuario sin rol administrativo, este campo **no existe en el JSON** (no se envía ni como `null`). Toda la información destinada al solicitante se detalla en `descripcion`.
 
 > [!IMPORTANT]
 > **Nota para Frontend:**
-> El botón de solicitar un equipo debe habilitarse basándose **únicamente en `puede_solicitarse`**. No recalcules la disponibilidad ni evalúes el campo `estado` en el cliente.
+> El botón de solicitar un equipo debe habilitarse basándose **únicamente en `puede_solicitarse`**. No recalcules la disponibilidad ni evalúes el campo `estado` en el cliente. Para el solicitante, toda la información pública del equipo se encuentra en `descripcion`.
 
 ---
 
-## 4. Regla de visibilidad por rol
+## 4. Reglas de visibilidad por rol
 
+El sistema implementa dos reglas de visibilidad basadas en el método `User::esPersonalAdministrativo()`:
+
+### 4.1 Visibilidad de equipos dados de baja
 El estado `dado_de_baja` representa un equipo retirado del servicio.
-
 - **`admin` y `encargado`:** pueden ver equipos en estado `dado_de_baja` tanto en el listado general (`GET /api/equipos`) como en el detalle puntual (`GET /api/equipos/{id}`).
 - **`usuario` (solicitante) y cualquier otro rol:** los equipos `dado_de_baja` **nunca aparecen** en el listado general, y consultar su detalle puntual devuelve `404 Recurso no encontrado.`, exactamente idéntico a consultar un ID inexistente. De esta forma no se revela la existencia del equipo.
+
+### 4.2 Visibilidad del campo interno `observaciones`
+El campo `observaciones` contiene notas de control interno, inventario o calibración del personal administrativo.
+- **`admin` y `encargado`:** reciben el campo `observaciones` tanto en el listado general (`data.*.observaciones`) como en el detalle individual (`data.observaciones`).
+- **`usuario` (solicitante) y usuarios sin rol:** el campo `observaciones` **se omite de la respuesta JSON** (no aparece ni como `null`).
 
 ---
 
 ## 5. Ejemplos reales de uso
 
-### Ejemplo 1: Filtrar portátiles ordenados alfabéticamente
+### Ejemplo 1: Filtrar portátiles ordenados alfabéticamente (Token de Usuario)
 **Petición:**
 ```http
 GET /api/equipos?categoria_id=1&ordenar=nombre HTTP/1.1
@@ -95,7 +103,7 @@ Authorization: Bearer 1|AbCdEf123456...
 Accept: application/json
 ```
 
-**Respuesta (`200 OK`):**
+**Respuesta (`200 OK` — `usuario` no ve `observaciones`):**
 ```json
 {
   "data": [
@@ -103,31 +111,29 @@ Accept: application/json
       "id": 1,
       "codigo": "EQ-PORT-01",
       "nombre": "Portátil Dell Latitude 3420",
-      "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
-      "estado": "disponible",
-      "disponible": true,
-      "puede_solicitarse": true,
-      "estado_disponibilidad": "disponible",
-      "observaciones": "Cargador original incluido",
       "categoria": {
         "id": 1,
         "nombre": "Portátil"
-      }
+      },
+      "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
+      "disponible": true,
+      "puede_solicitarse": true,
+      "estado_disponibilidad": "disponible",
+      "estado": "disponible"
     },
     {
       "id": 2,
       "codigo": "EQ-PORT-02",
       "nombre": "Portátil Lenovo ThinkPad E14",
-      "descripcion": "AMD Ryzen 5, 8GB RAM, SSD 256GB",
-      "estado": "en_prestamo",
-      "disponible": false,
-      "puede_solicitarse": false,
-      "estado_disponibilidad": "no_disponible",
-      "observaciones": "En préstamo a laboratorio de redes",
       "categoria": {
         "id": 1,
         "nombre": "Portátil"
-      }
+      },
+      "descripcion": "AMD Ryzen 5, 8GB RAM, SSD 256GB",
+      "disponible": false,
+      "puede_solicitarse": false,
+      "estado_disponibilidad": "no_disponible",
+      "estado": "en_prestamo"
     }
   ],
   "meta": {
@@ -139,7 +145,7 @@ Accept: application/json
 }
 ```
 
-### Ejemplo 2: Solo disponibles, buscando "Dell", ordenados por más recientes
+### Ejemplo 2: Solo disponibles, buscando "Dell", ordenados por más recientes (Token de Usuario)
 **Petición:**
 ```http
 GET /api/equipos?disponible=true&buscar=Dell&ordenar=recientes HTTP/1.1
@@ -148,7 +154,7 @@ Authorization: Bearer 1|AbCdEf123456...
 Accept: application/json
 ```
 
-**Respuesta (`200 OK`):**
+**Respuesta (`200 OK` — `usuario` no ve `observaciones`):**
 ```json
 {
   "data": [
@@ -156,31 +162,29 @@ Accept: application/json
       "id": 4,
       "codigo": "EQ-DESK-01",
       "nombre": "Todo en Uno Dell OptiPlex 5490",
-      "descripcion": "Intel Core i7, 16GB RAM, Pantalla 23.8\"",
-      "estado": "disponible",
-      "disponible": true,
-      "puede_solicitarse": true,
-      "estado_disponibilidad": "disponible",
-      "observaciones": "Teclado y mouse USB incluidos",
       "categoria": {
         "id": 3,
         "nombre": "De mesa"
-      }
+      },
+      "descripcion": "Intel Core i7, 16GB RAM, Pantalla 23.8\"",
+      "disponible": true,
+      "puede_solicitarse": true,
+      "estado_disponibilidad": "disponible",
+      "estado": "disponible"
     },
     {
       "id": 1,
       "codigo": "EQ-PORT-01",
       "nombre": "Portátil Dell Latitude 3420",
-      "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
-      "estado": "disponible",
-      "disponible": true,
-      "puede_solicitarse": true,
-      "estado_disponibilidad": "disponible",
-      "observaciones": "Cargador original incluido",
       "categoria": {
         "id": 1,
         "nombre": "Portátil"
-      }
+      },
+      "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
+      "disponible": true,
+      "puede_solicitarse": true,
+      "estado_disponibilidad": "disponible",
+      "estado": "disponible"
     }
   ],
   "meta": {
@@ -192,7 +196,7 @@ Accept: application/json
 }
 ```
 
-### Ejemplo 3: No disponibles con parámetro vacío ignorado
+### Ejemplo 3: No disponibles con parámetro vacío ignorado (Token de Usuario)
 **Petición:**
 ```http
 GET /api/equipos?disponible=false&categoria_id= HTTP/1.1
@@ -201,7 +205,7 @@ Authorization: Bearer 1|AbCdEf123456...
 Accept: application/json
 ```
 
-**Respuesta (`200 OK`):**
+**Respuesta (`200 OK` — `usuario` no ve `observaciones`):**
 ```json
 {
   "data": [
@@ -209,31 +213,29 @@ Accept: application/json
       "id": 2,
       "codigo": "EQ-PORT-02",
       "nombre": "Portátil Lenovo ThinkPad E14",
-      "descripcion": "AMD Ryzen 5, 8GB RAM, SSD 256GB",
-      "estado": "en_prestamo",
-      "disponible": false,
-      "puede_solicitarse": false,
-      "estado_disponibilidad": "no_disponible",
-      "observaciones": "En préstamo a laboratorio de redes",
       "categoria": {
         "id": 1,
         "nombre": "Portátil"
-      }
+      },
+      "descripcion": "AMD Ryzen 5, 8GB RAM, SSD 256GB",
+      "disponible": false,
+      "puede_solicitarse": false,
+      "estado_disponibilidad": "no_disponible",
+      "estado": "en_prestamo"
     },
     {
       "id": 3,
       "codigo": "EQ-TAB-01",
       "nombre": "Tablet Samsung Galaxy Tab S7",
-      "descripcion": "Pantalla 11\", 128GB almacenamiento",
-      "estado": "mantenimiento",
-      "disponible": false,
-      "puede_solicitarse": false,
-      "estado_disponibilidad": "no_disponible",
-      "observaciones": "Mantenimiento preventivo de batería",
       "categoria": {
         "id": 2,
         "nombre": "Tablet"
-      }
+      },
+      "descripcion": "Pantalla 11\", 128GB almacenamiento",
+      "disponible": false,
+      "puede_solicitarse": false,
+      "estado_disponibilidad": "no_disponible",
+      "estado": "mantenimiento"
     }
   ],
   "meta": {
@@ -269,11 +271,70 @@ Accept: application/json
 }
 ```
 
-### Ejemplo 5: Consulta de equipo dado de baja (Admin vs Usuario)
+### Ejemplo 5: Detalle de equipo disponible — Usuario vs Administrador (Visibilidad de `observaciones`)
+
+**Petición con token de Usuario Solicitante (`usuario`):**
+```http
+GET /api/equipos/1 HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <token-usuario>
+Accept: application/json
+```
+
+**Respuesta real para Usuario (`200 OK` — sin clave `observaciones`):**
+```json
+{
+  "data": {
+    "id": 1,
+    "codigo": "EQ-PORT-01",
+    "nombre": "Portátil Dell Latitude 3420",
+    "categoria": {
+      "id": 1,
+      "nombre": "Portátil"
+    },
+    "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
+    "disponible": true,
+    "puede_solicitarse": true,
+    "estado_disponibilidad": "disponible",
+    "estado": "disponible"
+  }
+}
+```
+
+**Petición con token de Administrador (`admin` o `encargado`):**
+```http
+GET /api/equipos/1 HTTP/1.1
+Host: localhost:8000
+Authorization: Bearer <token-admin>
+Accept: application/json
+```
+
+**Respuesta real para Administrador (`200 OK` — con clave `observaciones`):**
+```json
+{
+  "data": {
+    "id": 1,
+    "codigo": "EQ-PORT-01",
+    "nombre": "Portátil Dell Latitude 3420",
+    "categoria": {
+      "id": 1,
+      "nombre": "Portátil"
+    },
+    "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
+    "disponible": true,
+    "puede_solicitarse": true,
+    "estado_disponibilidad": "disponible",
+    "estado": "disponible",
+    "observaciones": "Cargador original incluido. Calibrado Sep 2026."
+  }
+}
+```
+
+### Ejemplo 6: Consulta de equipo dado de baja (Admin vs Usuario)
 
 **Petición con token de Administrador (`admin`):**
 ```http
-GET /api/equipos/1 HTTP/1.1
+GET /api/equipos/5 HTTP/1.1
 Host: localhost:8000
 Authorization: Bearer <token-admin>
 Accept: application/json
@@ -283,7 +344,7 @@ Accept: application/json
 ```json
 {
   "data": {
-    "id": 1,
+    "id": 5,
     "codigo": "EQ-BAJA-01",
     "nombre": "Portátil HP ProBook 450 (Baja)",
     "categoria": {
@@ -302,7 +363,7 @@ Accept: application/json
 
 **Petición con token de Usuario Solicitante (`usuario`):**
 ```http
-GET /api/equipos/1 HTTP/1.1
+GET /api/equipos/5 HTTP/1.1
 Host: localhost:8000
 Authorization: Bearer <token-usuario>
 Accept: application/json
@@ -315,3 +376,4 @@ Accept: application/json
 }
 ```
 *(Idéntica respuesta a consultar un ID inexistente)*
+

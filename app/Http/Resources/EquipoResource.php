@@ -27,8 +27,10 @@ class EquipoResource extends JsonResource
             'puede_solicitarse' => $disponible,
             'estado_disponibilidad' => $disponible ? 'disponible' : 'no_disponible',
             'estado' => $this->estado,
-            // Pendiente confirmar con PO si el rol usuario debe verla
-            'observaciones' => $this->observaciones,
+            'observaciones' => $this->when(
+                $request->user()?->esPersonalAdministrativo() ?? false,
+                $this->observaciones
+            ),
         ];
     }
 }

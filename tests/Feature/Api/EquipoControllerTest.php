@@ -410,11 +410,11 @@ class EquipoControllerTest extends TestCase
                         'puede_solicitarse',
                         'estado_disponibilidad',
                         'estado',
-                        'observaciones',
                     ],
                 ],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total'],
-            ]);
+            ])
+            ->assertJsonMissingPath('data.0.observaciones');
     }
 
     public function test_equipo_disponible_muestra_atributos_de_disponibilidad_positivos(): void
@@ -542,6 +542,72 @@ class EquipoControllerTest extends TestCase
             ->assertJsonPath('data.puede_solicitarse', true)
             ->assertJsonPath('data.estado_disponibilidad', 'disponible')
             ->assertJsonPath('data.categoria.id', $equipo->categoria_id);
+    }
+
+    public function test_rol_usuario_no_ve_campo_observaciones_en_listado_ni_en_detalle(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create([
+            'estado' => 'disponible',
+            'observaciones' => 'Nota interna de calibración',
+        ]);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.observaciones');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('data.observaciones');
+    }
+
+    public function test_usuario_sin_rol_no_ve_campo_observaciones_en_listado_ni_en_detalle(): void
+    {
+        $usuarioSinRol = User::factory()->create();
+        Sanctum::actingAs($usuarioSinRol);
+
+        $equipo = Equipo::factory()->create([
+            'estado' => 'disponible',
+            'observaciones' => 'Nota confidencial de mantenimiento',
+        ]);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.observaciones');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('data.observaciones');
+    }
+
+    public function test_admin_y_encargado_ven_campo_observaciones_en_listado_y_en_detalle(): void
+    {
+        $equipo = Equipo::factory()->create([
+            'estado' => 'disponible',
+            'observaciones' => 'Equipo requiere revisión técnica trimestral',
+        ]);
+
+        // Verificación como admin
+        $this->actingAsAdmin();
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonPath('data.0.observaciones', 'Equipo requiere revisión técnica trimestral');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonPath('data.observaciones', 'Equipo requiere revisión técnica trimestral');
+
+        // Verificación como encargado
+        $this->actingAsEncargado();
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonPath('data.0.observaciones', 'Equipo requiere revisión técnica trimestral');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonPath('data.observaciones', 'Equipo requiere revisión técnica trimestral');
     }
 
     public function test_listado_sin_problema_de_n_mas_uno_sobre_categoria(): void

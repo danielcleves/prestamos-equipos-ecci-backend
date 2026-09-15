@@ -32,4 +32,12 @@ class User extends Authenticatable
             'is_active' => 'boolean',
         ];
     }
+
+    /**
+     * Determina si el usuario pertenece al personal administrativo (admin o encargado).
+     */
+    public function esPersonalAdministrativo(): bool
+    {
+        return $this->hasAnyRole(['admin', 'encargado']);
+    }
 }
