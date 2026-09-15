@@ -19,7 +19,10 @@ class EquipoController extends Controller
         // el mismo arreglo en UserController::index, senalado en review).
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $equipos = Equipo::with('categoria')->orderBy('nombre')->paginate($perPage);
+        $equipos = Equipo::with('categoria')
+            ->when($request->user()?->hasRole('usuario'), fn ($query) => $query->visiblesEnCatalogo())
+            ->orderBy('nombre')
+            ->paginate($perPage);
 
         return response()->json([
             'data' => EquipoResource::collection($equipos),
@@ -44,8 +47,12 @@ class EquipoController extends Controller
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))], 201);
     }
 
-    public function show(Equipo $equipo): JsonResponse
+    public function show(Request $request, Equipo $equipo): JsonResponse
     {
+        if ($request->user()?->hasRole('usuario') && $equipo->estado === 'dado_de_baja') {
+            return response()->json(['message' => 'Equipo no encontrado.'], 404);
+        }
+
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
     }
 

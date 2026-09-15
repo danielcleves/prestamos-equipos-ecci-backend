@@ -8,6 +8,7 @@ use App\Models\User;
 use Database\Seeders\CategoriaSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -31,6 +32,16 @@ class EquipoControllerTest extends TestCase
         Sanctum::actingAs($admin);
 
         return $admin;
+    }
+
+    private function actingAsEncargado(): User
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+
+        Sanctum::actingAs($encargado);
+
+        return $encargado;
     }
 
     private function actingAsUsuario(): User
@@ -361,6 +372,165 @@ class EquipoControllerTest extends TestCase
             'equipo_id' => $equipo->id,
             'user_id' => null,
         ]);
+    }
+
+    public function test_peticion_sin_autenticar_no_puede_consultar_detalle_de_equipo(): void
+    {
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}")->assertStatus(401);
+    }
+
+    // --- Disponibilidad en catalogo (HU-05) ---
+
+    public function test_usuario_con_rol_usuario_lista_catalogo_con_estructura_de_disponibilidad(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create();
+
+        $response = $this->getJson('/api/equipos');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'codigo',
+                        'nombre',
+                        'categoria' => ['id', 'nombre'],
+                        'descripcion',
+                        'disponible',
+                        'puede_solicitarse',
+                        'estado_disponibilidad',
+                        'estado',
+                        'observaciones',
+                    ],
+                ],
+                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            ]);
+    }
+
+    public function test_equipo_disponible_muestra_atributos_de_disponibilidad_positivos(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['estado' => 'disponible']);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonPath('data.0.disponible', true)
+            ->assertJsonPath('data.0.puede_solicitarse', true)
+            ->assertJsonPath('data.0.estado_disponibilidad', 'disponible')
+            ->assertJsonPath('data.0.estado', 'disponible');
+    }
+
+    public function test_equipo_en_prestamo_aparece_en_catalogo_como_no_disponible(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['estado' => 'en_prestamo']);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.disponible', false)
+            ->assertJsonPath('data.0.puede_solicitarse', false)
+            ->assertJsonPath('data.0.estado_disponibilidad', 'no_disponible')
+            ->assertJsonPath('data.0.estado', 'en_prestamo');
+    }
+
+    public function test_equipo_en_mantenimiento_aparece_en_catalogo_como_no_disponible(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['estado' => 'mantenimiento']);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.disponible', false)
+            ->assertJsonPath('data.0.puede_solicitarse', false)
+            ->assertJsonPath('data.0.estado_disponibilidad', 'no_disponible')
+            ->assertJsonPath('data.0.estado', 'mantenimiento');
+    }
+
+    public function test_equipo_dado_de_baja_no_es_visible_para_rol_usuario_y_su_detalle_da_404(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertStatus(404)
+            ->assertJsonPath('message', 'Equipo no encontrado.');
+    }
+
+    public function test_equipo_dado_de_baja_es_visible_para_admin_y_encargado(): void
+    {
+        $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+
+        // Rol admin puede ver en catalogo y en detalle
+        $this->actingAsAdmin();
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $equipo->id);
+
+        // Rol encargado puede ver en catalogo y en detalle
+        $this->actingAsEncargado();
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $equipo->id);
+    }
+
+    public function test_detalle_de_equipo_incluye_campos_de_disponibilidad_y_categoria(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create(['estado' => 'disponible']);
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $equipo->id)
+            ->assertJsonPath('data.disponible', true)
+            ->assertJsonPath('data.puede_solicitarse', true)
+            ->assertJsonPath('data.estado_disponibilidad', 'disponible')
+            ->assertJsonPath('data.categoria.id', $equipo->categoria_id);
+    }
+
+    public function test_listado_sin_problema_de_n_mas_uno_sobre_categoria(): void
+    {
+        $this->actingAsUsuario();
+        $categorias = Categoria::factory()->count(3)->create();
+
+        // Warm up del usuario y roles para que la autenticacion no afecte el conteo
+        $this->getJson('/api/equipos');
+
+        // 1 equipo: medimos queries
+        Equipo::factory()->create(['categoria_id' => $categorias[0]->id]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson('/api/equipos')->assertOk();
+        $queriesConUnEquipo = count(DB::getQueryLog());
+
+        // Limpiamos y creamos 6 equipos con diferentes categorias
+        Equipo::query()->delete();
+        foreach ($categorias as $categoria) {
+            Equipo::factory()->count(2)->create(['categoria_id' => $categoria->id]);
+        }
+
+        DB::flushQueryLog();
+        $this->getJson('/api/equipos')->assertOk();
+        $queriesConVariosEquipos = count(DB::getQueryLog());
+
+        // El numero de queries debe mantenerse constante (1 count + 1 equipos + 1 categorias)
+        $this->assertSame(3, $queriesConUnEquipo);
+        $this->assertSame(3, $queriesConVariosEquipos);
     }
 
     /**

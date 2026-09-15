@@ -6,6 +6,7 @@ use App\Observers\EquipoObserver;
 use Database\Factories\EquipoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,15 +19,55 @@ class Equipo extends Model
     /** @use HasFactory<EquipoFactory> */
     use HasFactory;
 
-    public const ESTADOS = ['disponible', 'en_prestamo', 'mantenimiento', 'dado_de_baja'];
+    public const ESTADO_DISPONIBLE = 'disponible';
 
-    public const ESTADO_INICIAL = 'disponible';
+    public const ESTADO_INICIAL = self::ESTADO_DISPONIBLE;
 
     /**
      * Estado terminal (HU-04): un equipo dado de baja no puede volver a
      * cambiar de estado, para que nunca pueda llegar a 'en_prestamo'.
      */
     public const ESTADO_TERMINAL = 'dado_de_baja';
+
+    public const ESTADOS = [self::ESTADO_DISPONIBLE, 'en_prestamo', 'mantenimiento', self::ESTADO_TERMINAL];
+
+    /**
+     * Determina si el equipo esta disponible para prestamo.
+     *
+     * Esta regla y el scopeDisponible() son la unica fuente de verdad de
+     * disponibilidad en el sistema; la HU-06 debe consumirlos para validar
+     * y rechazar solicitudes sobre equipos no disponibles.
+     */
+    public function isDisponible(): bool
+    {
+        return $this->estado === self::ESTADO_DISPONIBLE;
+    }
+
+    /**
+     * Scope para filtrar unicamente equipos disponibles.
+     * Reutilizable por la HU-06 para validar solicitudes de prestamo.
+     */
+    public function scopeDisponible(Builder $query): Builder
+    {
+        return $query->where('estado', self::ESTADO_DISPONIBLE);
+    }
+
+    /**
+     * Scope para filtrar equipos no disponibles.
+     */
+    public function scopeNoDisponible(Builder $query): Builder
+    {
+        return $query->where('estado', '!=', self::ESTADO_DISPONIBLE);
+    }
+
+    /**
+     * Scope para equipos visibles en el catalogo general del rol usuario.
+     * Excluye equipos dados de baja, mientras que admin y encargado si pueden verlos.
+     */
+    public function scopeVisiblesEnCatalogo(Builder $query): Builder
+    {
+        return $query->where('estado', '!=', self::ESTADO_TERMINAL);
+    }
 
     public function categoria(): BelongsTo
     {
