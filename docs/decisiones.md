@@ -34,7 +34,7 @@ los seeders.
 | `mantenimientos` | Diferido | Baja prioridad, último sprint si alcanza |
 | `lista_espera` | En espera | Pendiente de consultar con el profesor (cliente) |
 | `parametros_sistema` | Opcional | Sin decisión explícita todavía (configuración utilitaria) |
-| `historial_estados` | Se mantiene | Trazabilidad/auditoría de cambios de estado |
+| `historial_estados` | Se mantiene | Trazabilidad/auditoría de cambios de estado — implementada en HU-04 |
 
 Reemplaza la propuesta anterior de 12 tablas: esta es la versión acordada.
 
@@ -63,18 +63,26 @@ parametros.gestionar
 - `encargado`: `unidades.*`, `prestamos.ver_todos/aprobar/rechazar/entregar/recibir`, `mantenimientos.gestionar`, `equipos.ver`
 - `usuario`: `equipos.ver`, `prestamos.crear`, `prestamos.ver_propios`
 
-## Catálogo de equipos (HU-03)
+## Catálogo de equipos (HU-03 y HU-04)
 
 `equipos` — cada fila es una unidad física identificada por su propio
 `codigo` (único). Campos: `codigo`, `nombre`, `categoria_id` (FK a
 `categorias`), `descripcion`, `estado`, `observaciones`.
 
-- **`estado`** tiene 3 valores fijos: `disponible` (inicial, lo asigna el
+- **`estado`** tiene 4 valores fijos: `disponible` (inicial, lo asigna el
   sistema al registrar — no es un campo de entrada), `en_prestamo`,
-  `mantenimiento`. Constantes en `App\Models\Equipo::ESTADOS` /
-  `ESTADO_INICIAL`.
+  `mantenimiento`, `dado_de_baja`. Constantes en `App\Models\Equipo::ESTADOS`
+  / `ESTADO_INICIAL` / `ESTADO_TERMINAL`.
+- **`dado_de_baja` es terminal**: un equipo en ese estado no puede volver a
+  cambiar de estado — así nunca puede llegar a `en_prestamo` (HU-04: "un
+  equipo dado de baja no debe poder ser prestado").
 - **`categorias`** no tiene CRUD propio todavía — se siembra con
   `CategoriaSeeder` (`Portátil`, `Tablet`, `De mesa`) hasta que exista una HU
   para administrarlas.
+- **`historial_estados`** (HU-04): cada cambio de `estado` (incluida la
+  asignación inicial al registrar) queda registrado ahí — quién lo hizo y
+  cuándo. Lo llena `App\Observers\EquipoObserver`, no el controller, para
+  que cualquier código futuro que toque `estado` quede cubierto sin tener
+  que acordarse de loguearlo a mano.
 
 Ver `docs/api/equipos.md` para el contrato completo de la API.

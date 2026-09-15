@@ -123,7 +123,8 @@ curl/Postman): [`docs/api/autenticacion.md`](docs/api/autenticacion.md)
 ## 💻 Catálogo de equipos
 
 `GET /api/equipos` (cualquier autenticado), `GET /api/equipos/{equipo}`,
-`POST /api/equipos` (exclusivo `admin`).
+`GET /api/equipos/{equipo}/historial`, `POST /api/equipos` (exclusivo
+`admin`), `PATCH /api/equipos/{equipo}/estado` (exclusivo `admin`).
 
 📖 Documentación completa: [`docs/api/equipos.md`](docs/api/equipos.md)
 
