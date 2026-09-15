@@ -8,6 +8,7 @@ use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
 use App\Http\Resources\HistorialEstadoResource;
 use App\Models\Equipo;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,7 +21,7 @@ class EquipoController extends Controller
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
         $equipos = Equipo::with('categoria')
-            ->when($request->user()?->hasRole('usuario'), fn ($query) => $query->visiblesEnCatalogo())
+            ->when(! Equipo::puedeVerDadosDeBaja($request->user()), fn ($query) => $query->visiblesEnCatalogo())
             ->orderBy('nombre')
             ->paginate($perPage);
 
@@ -49,8 +50,8 @@ class EquipoController extends Controller
 
     public function show(Request $request, Equipo $equipo): JsonResponse
     {
-        if ($request->user()?->hasRole('usuario') && $equipo->estado === 'dado_de_baja') {
-            return response()->json(['message' => 'Equipo no encontrado.'], 404);
+        if (! Equipo::puedeVerDadosDeBaja($request->user()) && $equipo->isDadoDeBaja()) {
+            throw (new ModelNotFoundException)->setModel(Equipo::class, [$equipo->id]);
         }
 
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);

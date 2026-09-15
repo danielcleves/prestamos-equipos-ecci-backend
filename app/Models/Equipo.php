@@ -23,13 +23,25 @@ class Equipo extends Model
 
     public const ESTADO_INICIAL = self::ESTADO_DISPONIBLE;
 
+    public const ESTADO_DADO_DE_BAJA = 'dado_de_baja';
+
     /**
      * Estado terminal (HU-04): un equipo dado de baja no puede volver a
      * cambiar de estado, para que nunca pueda llegar a 'en_prestamo'.
      */
-    public const ESTADO_TERMINAL = 'dado_de_baja';
+    public const ESTADO_TERMINAL = self::ESTADO_DADO_DE_BAJA;
 
-    public const ESTADOS = [self::ESTADO_DISPONIBLE, 'en_prestamo', 'mantenimiento', self::ESTADO_TERMINAL];
+    public const ESTADOS = [self::ESTADO_DISPONIBLE, 'en_prestamo', 'mantenimiento', self::ESTADO_DADO_DE_BAJA];
+
+    /**
+     * Determina si el usuario tiene permisos para ver equipos dados de baja.
+     * Seguro por defecto: solo admin y encargado pueden verlos; cualquier otro
+     * rol o usuario sin roles no tiene acceso a ellos.
+     */
+    public static function puedeVerDadosDeBaja(?User $user): bool
+    {
+        return $user?->hasAnyRole(['admin', 'encargado']) ?? false;
+    }
 
     /**
      * Determina si el equipo esta disponible para prestamo.
@@ -41,6 +53,14 @@ class Equipo extends Model
     public function isDisponible(): bool
     {
         return $this->estado === self::ESTADO_DISPONIBLE;
+    }
+
+    /**
+     * Determina si el equipo ha sido dado de baja.
+     */
+    public function isDadoDeBaja(): bool
+    {
+        return $this->estado === self::ESTADO_DADO_DE_BAJA;
     }
 
     /**
@@ -61,12 +81,12 @@ class Equipo extends Model
     }
 
     /**
-     * Scope para equipos visibles en el catalogo general del rol usuario.
+     * Scope para equipos visibles en el catalogo general.
      * Excluye equipos dados de baja, mientras que admin y encargado si pueden verlos.
      */
     public function scopeVisiblesEnCatalogo(Builder $query): Builder
     {
-        return $query->where('estado', '!=', self::ESTADO_TERMINAL);
+        return $query->where('estado', '!=', self::ESTADO_DADO_DE_BAJA);
     }
 
     public function categoria(): BelongsTo

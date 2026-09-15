@@ -381,6 +381,14 @@ class EquipoControllerTest extends TestCase
         $this->getJson("/api/equipos/{$equipo->id}")->assertStatus(401);
     }
 
+    public function test_equipo_inexistente_devuelve_404(): void
+    {
+        $this->actingAsUsuario();
+        $this->getJson('/api/equipos/999999')
+            ->assertStatus(404)
+            ->assertJsonPath('message', 'No query results for model [App\Models\Equipo] 999999');
+    }
+
     // --- Disponibilidad en catalogo (HU-05) ---
 
     public function test_usuario_con_rol_usuario_lista_catalogo_con_estructura_de_disponibilidad(): void
@@ -413,7 +421,7 @@ class EquipoControllerTest extends TestCase
     public function test_equipo_disponible_muestra_atributos_de_disponibilidad_positivos(): void
     {
         $this->actingAsUsuario();
-        Equipo::factory()->create(['estado' => 'disponible']);
+        Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         $this->getJson('/api/equipos')
             ->assertOk()
@@ -454,7 +462,7 @@ class EquipoControllerTest extends TestCase
     public function test_equipo_dado_de_baja_no_es_visible_para_rol_usuario_y_su_detalle_da_404(): void
     {
         $this->actingAsUsuario();
-        $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
 
         $this->getJson('/api/equipos')
             ->assertOk()
@@ -462,12 +470,50 @@ class EquipoControllerTest extends TestCase
 
         $this->getJson("/api/equipos/{$equipo->id}")
             ->assertStatus(404)
-            ->assertJsonPath('message', 'Equipo no encontrado.');
+            ->assertJsonPath('message', "No query results for model [App\Models\Equipo] {$equipo->id}");
+    }
+
+    public function test_usuario_autenticado_sin_ningun_rol_no_ve_dado_de_baja_y_detalle_da_404(): void
+    {
+        $usuarioSinRol = User::factory()->create();
+        Sanctum::actingAs($usuarioSinRol);
+
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+
+        $this->getJson('/api/equipos')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        $this->getJson("/api/equipos/{$equipo->id}")
+            ->assertStatus(404)
+            ->assertJsonPath('message', "No query results for model [App\Models\Equipo] {$equipo->id}");
+    }
+
+    public function test_404_de_equipo_dado_de_baja_y_de_id_inexistente_devuelven_el_mismo_json(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+        $id = $equipo->id;
+
+        // 404 cuando el equipo existe pero esta dado de baja (oculto a usuarios comunes)
+        $responseDadoDeBaja = $this->getJson("/api/equipos/{$id}");
+        $responseDadoDeBaja->assertStatus(404);
+
+        // Eliminamos el equipo de la base de datos para simular que no existe
+        $equipo->delete();
+
+        // 404 cuando el equipo realmente no existe en la base de datos (route model binding)
+        $responseInexistente = $this->getJson("/api/equipos/{$id}");
+        $responseInexistente->assertStatus(404);
+
+        // Ambas respuestas deben ser exactamente identicas en status, cabeceras de error y cuerpo JSON
+        $this->assertSame($responseInexistente->json(), $responseDadoDeBaja->json());
+        $this->assertSame("No query results for model [App\Models\Equipo] {$id}", $responseDadoDeBaja->json('message'));
     }
 
     public function test_equipo_dado_de_baja_es_visible_para_admin_y_encargado(): void
     {
-        $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
 
         // Rol admin puede ver en catalogo y en detalle
         $this->actingAsAdmin();
