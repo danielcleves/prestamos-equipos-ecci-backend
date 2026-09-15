@@ -17,10 +17,10 @@ class IndexEquipoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'categoria_id' => ['sometimes', 'integer', 'exists:categorias,id'],
-            'disponible' => ['sometimes', 'in:true,false,1,0'],
-            'buscar' => ['sometimes', 'string', 'max:100'],
-            'ordenar' => ['sometimes', 'in:nombre,-nombre,disponibles_primero,recientes'],
+            'categoria_id' => ['sometimes', 'nullable', 'integer', 'exists:categorias,id'],
+            'disponible' => ['sometimes', 'nullable', 'in:true,false,1,0'],
+            'buscar' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'ordenar' => ['sometimes', 'nullable', 'in:nombre,-nombre,disponibles_primero,recientes'],
         ];
     }
 }

@@ -24,16 +24,19 @@ class EquipoController extends Controller
         $query = Equipo::with('categoria')
             ->when(! Equipo::puedeVerDadosDeBaja($request->user()), fn ($q) => $q->visiblesEnCatalogo())
             ->when($request->filled('categoria_id'), fn ($q) => $q->where('categoria_id', $request->integer('categoria_id')))
-            ->when($request->has('disponible'), fn ($q) => $request->boolean('disponible') ? $q->disponible() : $q->noDisponible())
+            ->when($request->filled('disponible'), fn ($q) => $request->boolean('disponible') ? $q->disponible() : $q->noDisponible())
             ->when($request->filled('buscar'), fn ($q) => $q->buscar($request->string('buscar')->toString()));
 
-        match ($request->input('ordenar')) {
-            '-nombre' => $query->orderByDesc('nombre'),
+        $orden = $request->filled('ordenar') ? $request->input('ordenar') : 'nombre';
+
+        match ($orden) {
+            '-nombre' => $query->orderByDesc('nombre')->orderByDesc('id'),
             'disponibles_primero' => $query
                 ->orderByRaw('CASE WHEN estado = ? THEN 0 ELSE 1 END', [Equipo::ESTADO_DISPONIBLE])
-                ->orderBy('nombre'),
+                ->orderBy('nombre')
+                ->orderBy('id'),
             'recientes' => $query->orderByDesc('created_at')->orderByDesc('id'),
-            default => $query->orderBy('nombre'),
+            default => $query->orderBy('nombre')->orderBy('id'),
         };
 
         $equipos = $query->paginate($perPage)->withQueryString();

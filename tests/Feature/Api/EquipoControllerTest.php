@@ -815,6 +815,121 @@ class EquipoControllerTest extends TestCase
             ->assertJsonValidationErrors(['categoria_id']);
     }
 
+    // --- Tests de ajuste FASE 2.1 ---
+
+    public function test_buscar_con_caracter_porcentaje_escapado_filtra_literalmente(): void
+    {
+        $this->actingAsUsuario();
+        $cat = Categoria::factory()->create(['nombre' => 'Baterías']);
+
+        $eq1 = Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Equipo Batería A',
+            'codigo' => 'EQ-BAT-01',
+            'descripcion' => 'Batería 100% nueva',
+        ]);
+        Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Equipo Batería B',
+            'codigo' => 'EQ-BAT-02',
+            'descripcion' => 'Batería 1000 mAh',
+        ]);
+
+        $this->getJson('/api/equipos?buscar=100%25')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $eq1->id);
+    }
+
+    public function test_buscar_con_guion_bajo_escapado_filtra_literalmente(): void
+    {
+        $this->actingAsUsuario();
+        $cat = Categoria::factory()->create(['nombre' => 'General']);
+
+        $eq1 = Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Equipo Especial 1',
+            'codigo' => 'EQ_A1',
+            'descripcion' => 'Prueba guion bajo',
+        ]);
+        Equipo::factory()->create([
+            'categoria_id' => $cat->id,
+            'nombre' => 'Equipo Especial 2',
+            'codigo' => 'EQA01',
+            'descripcion' => 'Prueba sin guion bajo',
+        ]);
+
+        $this->getJson('/api/equipos?buscar=EQ_A')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $eq1->id);
+    }
+
+    public function test_buscar_con_signo_exclamacion_no_rompe_la_consulta(): void
+    {
+        $this->actingAsUsuario();
+        Equipo::factory()->create(['nombre' => 'Portátil Dell', 'codigo' => 'EQ-DELL-01']);
+
+        $this->getJson('/api/equipos?buscar=!')
+            ->assertOk();
+    }
+
+    public function test_parametros_vacios_no_filtran_el_catalogo(): void
+    {
+        $this->actingAsUsuario();
+        $cat1 = Categoria::factory()->create(['nombre' => 'Portátiles']);
+        $cat2 = Categoria::factory()->create(['nombre' => 'Tablets']);
+
+        Equipo::factory()->create([
+            'categoria_id' => $cat1->id,
+            'nombre' => 'Portátil Dell',
+            'estado' => 'disponible',
+        ]);
+        Equipo::factory()->create([
+            'categoria_id' => $cat2->id,
+            'nombre' => 'Tablet Lenovo',
+            'estado' => 'en_prestamo',
+        ]);
+
+        // Sin parametros: devuelve ambos equipos
+        $resBase = $this->getJson('/api/equipos')->assertOk()->assertJsonCount(2, 'data');
+
+        // Con disponible= vacio: devuelve disponibles y no disponibles (igual que sin parametro)
+        $resDisponibleVacio = $this->getJson('/api/equipos?disponible=')->assertOk()->assertJsonCount(2, 'data');
+        $this->assertSame($resBase->json('data'), $resDisponibleVacio->json('data'));
+
+        // Con categoria_id= y buscar= vacios: tampoco filtran
+        $this->getJson('/api/equipos?categoria_id=')->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/api/equipos?buscar=')->assertOk()->assertJsonCount(2, 'data');
+        $this->getJson('/api/equipos?ordenar=')->assertOk()->assertJsonCount(2, 'data');
+    }
+
+    public function test_orden_estable_con_desempate_por_id_en_paginacion(): void
+    {
+        $this->actingAsUsuario();
+        $cat = Categoria::factory()->create(['nombre' => 'Portátiles']);
+
+        // 3 equipos con el mismo nombre
+        $eq1 = Equipo::factory()->create(['categoria_id' => $cat->id, 'nombre' => 'Portátil Dell']);
+        $eq2 = Equipo::factory()->create(['categoria_id' => $cat->id, 'nombre' => 'Portátil Dell']);
+        $eq3 = Equipo::factory()->create(['categoria_id' => $cat->id, 'nombre' => 'Portátil Dell']);
+
+        // Pagina 1 (per_page=2)
+        $page1 = $this->getJson('/api/equipos?per_page=2&page=1')->assertOk();
+        $idsPage1 = array_column($page1->json('data'), 'id');
+        $this->assertCount(2, $idsPage1);
+
+        // Pagina 2 (per_page=2)
+        $page2 = $this->getJson('/api/equipos?per_page=2&page=2')->assertOk();
+        $idsPage2 = array_column($page2->json('data'), 'id');
+        $this->assertCount(1, $idsPage2);
+
+        // Las dos paginas juntas contienen los 3 ids sin repetir
+        $todosLosIds = array_merge($idsPage1, $idsPage2);
+        $this->assertCount(3, array_unique($todosLosIds));
+        $this->assertEqualsCanonicalizing([$eq1->id, $eq2->id, $eq3->id], $todosLosIds);
+    }
+
     /**
      * @return array<string, mixed>
      */

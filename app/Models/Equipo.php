@@ -91,19 +91,23 @@ class Equipo extends Model
 
     /**
      * Scope para buscar equipos por nombre, codigo o descripcion.
-     * Escapa los comodines % y _ antes de armar el LIKE.
+     * Escapa !, % y _ con ! como caracter de escape, compatible con SQLite y MySQL.
      *
      * @param  Builder<Equipo>  $query
      * @return Builder<Equipo>
      */
     public function scopeBuscar(Builder $query, string $texto): Builder
     {
-        $escaped = addcslashes($texto, '%_');
+        $escapado = str_replace(
+            ['!', '%', '_'],
+            ['!!', '!%', '!_'],
+            $texto
+        );
 
-        return $query->where(function (Builder $q) use ($escaped) {
-            $q->where('nombre', 'LIKE', "%{$escaped}%")
-                ->orWhere('codigo', 'LIKE', "%{$escaped}%")
-                ->orWhere('descripcion', 'LIKE', "%{$escaped}%");
+        return $query->where(function (Builder $q) use ($escapado) {
+            $q->whereRaw("nombre LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                ->orWhereRaw("codigo LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                ->orWhereRaw("descripcion LIKE ? ESCAPE '!'", ["%{$escapado}%"]);
         });
     }
 
