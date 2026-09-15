@@ -7,6 +7,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Exceptions\UnauthorizedException;
@@ -89,10 +90,41 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        // Captura general de HttpException con status 403
+        // 429: ThrottleRequestsException
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(
+                    ['message' => __('errores.demasiadas_solicitudes')],
+                    429,
+                    $e->getHeaders()
+                );
+            }
+        });
+
+        // Captura general de otras HttpException 4xx (403, 429 de respaldo, 400, 409, etc.)
         $exceptions->render(function (HttpException $e, Request $request) {
-            if ($request->is('api/*') && $e->getStatusCode() === 403) {
-                return response()->json(['message' => __('errores.prohibido')], 403);
+            if ($request->is('api/*')) {
+                $status = $e->getStatusCode();
+
+                if ($status === 403) {
+                    return response()->json(['message' => __('errores.prohibido')], 403, $e->getHeaders());
+                }
+
+                if ($status === 429) {
+                    return response()->json(
+                        ['message' => __('errores.demasiadas_solicitudes')],
+                        429,
+                        $e->getHeaders()
+                    );
+                }
+
+                if ($status >= 400 && $status < 500) {
+                    return response()->json(
+                        ['message' => __('errores.solicitud_no_procesable')],
+                        $status,
+                        $e->getHeaders()
+                    );
+                }
             }
         });
 

@@ -6,6 +6,7 @@ use App\Models\Equipo;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -135,5 +136,41 @@ class ErrorResponsesTest extends TestCase
             json_encode(['message' => 'Recurso no encontrado.']),
             $response->getContent()
         );
+    }
+
+    public function test_exceder_limite_de_peticiones_devuelve_429_estandar_con_cabecera_retry_after(): void
+    {
+        Cache::flush();
+
+        // /api/login tiene middleware throttle:6,1
+        for ($i = 0; $i < 6; $i++) {
+            $this->postJson('/api/login', [
+                'email' => 'intento@ecci.edu.co',
+                'password' => 'invalida',
+            ]);
+        }
+
+        $response = $this->postJson('/api/login', [
+            'email' => 'intento@ecci.edu.co',
+            'password' => 'invalida',
+        ]);
+
+        $response->assertStatus(429)
+            ->assertExactJson(['message' => 'Demasiadas solicitudes. Intenta de nuevo más tarde.'])
+            ->assertHeader('Retry-After');
+
+        Cache::flush();
+    }
+
+    public function test_otra_excepcion_http_4xx_devuelve_mensaje_estandar_con_status_original(): void
+    {
+        Route::get('/api/test-error-409', function () {
+            abort(409);
+        });
+
+        $response = $this->getJson('/api/test-error-409');
+
+        $response->assertStatus(409)
+            ->assertExactJson(['message' => 'La solicitud no pudo procesarse.']);
     }
 }
