@@ -194,6 +194,22 @@ class EquipoControllerTest extends TestCase
         ]);
     }
 
+    public function test_cambio_de_estado_genera_exactamente_un_registro_de_historial(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        // 1 registro generado por la creacion inicial (observer 'created')
+        $this->assertDatabaseCount('historial_estados', 1);
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento'])
+            ->assertOk();
+
+        // Exactamente un registro adicional por la transicion (observer 'updated')
+        $this->assertDatabaseCount('historial_estados', 2);
+        $this->assertSame(2, $equipo->historialEstados()->count());
+    }
+
     public function test_usuario_sin_rol_admin_no_puede_cambiar_estado(): void
     {
         $this->actingAsUsuario();

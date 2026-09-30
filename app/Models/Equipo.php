@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use App\Observers\EquipoObserver;
 use Database\Factories\EquipoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['codigo', 'nombre', 'categoria_id', 'descripcion', 'estado', 'observaciones'])]
+#[ObservedBy([EquipoObserver::class])]
 class Equipo extends Model
 {
     /** @use HasFactory<EquipoFactory> */
