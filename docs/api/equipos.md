@@ -9,7 +9,7 @@ catálogo") y **HU-04** ("actualizar el estado de un equipo").
 |---|---|---|---|
 | `GET` | `/api/equipos` | Cualquier autenticado | Lista el catálogo, paginado (`?per_page=`, default 15, máx 100) |
 | `GET` | `/api/equipos/{equipo}` | Cualquier autenticado | Consulta un equipo puntual |
-| `GET` | `/api/equipos/{equipo}/historial` | Cualquier autenticado | Historial de cambios de `estado`, más reciente primero |
+| `GET` | `/api/equipos/{equipo}/historial` | Cualquier autenticado | Historial de cambios de `estado`, paginado (`?per_page=`, default 15, máx 100), más reciente primero |
 | `POST` | `/api/equipos` | Solo `admin` | Registra un equipo nuevo |
 | `PATCH` | `/api/equipos/{equipo}/estado` | Solo `admin` | Cambia el `estado` del equipo |
 
@@ -40,8 +40,8 @@ para administrar categorías.
 - El `estado` que mande el cliente en `POST /api/equipos` se ignora: el
   sistema siempre asigna `disponible` a un equipo recién creado.
 - **`dado_de_baja` es un estado terminal**: un equipo en ese estado no puede
-  volver a cambiar de estado (`PATCH .../estado` devuelve `422`). Así se
-  cumple que un equipo dado de baja nunca puede llegar a `en_prestamo`.
+  volver a cambiar de estado (`PATCH .../estado` devuelve `422` con `errors.estado`).
+  Así se cumple que un equipo dado de baja nunca puede llegar a `en_prestamo`.
 - Cada cambio de `estado` (incluida la asignación inicial al registrar)
   queda registrado en `historial_estados`, con quién lo hizo y cuándo —
   consultable en `GET /api/equipos/{equipo}/historial`.
@@ -99,12 +99,43 @@ curl -i -X PATCH http://localhost:8000/api/equipos/1/estado \
   -d '{"estado": "mantenimiento"}'
 ```
 
+Respuesta exitosa (`200`):
+
+```json
+{
+  "data": {
+    "id": 1,
+    "codigo": "EQ-001",
+    "nombre": "Portátil Dell 14\"",
+    "categoria": { "id": 1, "nombre": "Portátil" },
+    "descripcion": "Core i5, 8GB RAM",
+    "estado": "mantenimiento",
+    "observaciones": "Con cargador original"
+  }
+}
+```
+
+Si el equipo ya se encuentra `dado_de_baja`, la petición es rechazada (`422`):
+
+```json
+{
+  "message": "Un equipo dado de baja no puede cambiar de estado.",
+  "errors": {
+    "estado": [
+      "Un equipo dado de baja no puede cambiar de estado."
+    ]
+  }
+}
+```
+
 **Consultar el historial de estados**
 
 ```sh
 curl -i http://localhost:8000/api/equipos/1/historial \
   -H "Authorization: Bearer <token>"
 ```
+
+Respuesta (`200`):
 
 ```json
 {
@@ -113,17 +144,29 @@ curl -i http://localhost:8000/api/equipos/1/historial \
       "id": 2,
       "estado_anterior": "disponible",
       "estado_nuevo": "mantenimiento",
-      "usuario": { "id": 1, "name": "Test User" },
+      "usuario": {
+        "id": 1,
+        "name": "Admin"
+      },
       "fecha": "2026-09-09T19:50:00.000000Z"
     },
     {
       "id": 1,
       "estado_anterior": null,
       "estado_nuevo": "disponible",
-      "usuario": { "id": 1, "name": "Test User" },
+      "usuario": {
+        "id": 1,
+        "name": "Admin"
+      },
       "fecha": "2026-09-09T19:40:00.000000Z"
     }
-  ]
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 2
+  }
 }
 ```
 
