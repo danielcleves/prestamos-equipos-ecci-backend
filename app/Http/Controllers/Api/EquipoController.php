@@ -9,6 +9,7 @@ use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
 use App\Http\Resources\HistorialEstadoResource;
 use App\Models\Equipo;
+use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -66,9 +67,7 @@ class EquipoController extends Controller
 
     public function show(Request $request, Equipo $equipo): JsonResponse
     {
-        if (! ($request->user()?->esPersonalAdministrativo() ?? false) && $equipo->isDadoDeBaja()) {
-            throw (new ModelNotFoundException)->setModel(Equipo::class, [$equipo->id]);
-        }
+        $this->asegurarVisibilidad($request->user(), $equipo);
 
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
     }
@@ -82,6 +81,8 @@ class EquipoController extends Controller
 
     public function historial(Request $request, Equipo $equipo): JsonResponse
     {
+        $this->asegurarVisibilidad($request->user(), $equipo);
+
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
         $historial = $equipo->historialEstados()->with('usuario')->paginate($perPage);
@@ -95,5 +96,12 @@ class EquipoController extends Controller
                 'total' => $historial->total(),
             ],
         ]);
+    }
+
+    private function asegurarVisibilidad(?User $user, Equipo $equipo): void
+    {
+        if (! ($user?->esPersonalAdministrativo() ?? false) && $equipo->isDadoDeBaja()) {
+            throw (new ModelNotFoundException)->setModel(Equipo::class, [$equipo->id]);
+        }
     }
 }

@@ -374,6 +374,49 @@ class EquipoControllerTest extends TestCase
         ]);
     }
 
+    public function test_rol_usuario_pide_historial_de_equipo_dado_de_baja_recibe_404(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertStatus(404);
+    }
+
+    public function test_admin_y_encargado_pueden_consultar_historial_de_equipo_dado_de_baja(): void
+    {
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+
+        $this->actingAsAdmin();
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertOk()
+            ->assertJsonStructure([
+                'data',
+                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            ]);
+
+        $this->actingAsEncargado();
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertOk()
+            ->assertJsonStructure([
+                'data',
+                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            ]);
+    }
+
+    public function test_rol_usuario_puede_consultar_historial_de_equipo_disponible(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertOk()
+            ->assertJsonStructure([
+                'data',
+                'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+            ]);
+    }
+
     public function test_peticion_sin_autenticar_no_puede_consultar_detalle_de_equipo(): void
     {
         $equipo = Equipo::factory()->create();
