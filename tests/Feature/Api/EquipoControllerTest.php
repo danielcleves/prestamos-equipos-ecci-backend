@@ -233,11 +233,15 @@ class EquipoControllerTest extends TestCase
     {
         $this->actingAsAdmin();
         $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+        $conteoInicialHistorial = $equipo->historialEstados()->count();
 
         $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'disponible'])
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['estado'])
+            ->assertJsonPath('errors.estado.0', 'Un equipo dado de baja no puede cambiar de estado.');
 
         $this->assertSame('dado_de_baja', $equipo->fresh()->estado);
+        $this->assertSame($conteoInicialHistorial, $equipo->historialEstados()->count());
     }
 
     public function test_registrar_equipo_crea_la_entrada_inicial_del_historial(): void

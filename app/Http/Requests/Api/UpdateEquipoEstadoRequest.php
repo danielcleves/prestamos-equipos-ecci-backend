@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api;
 
 use App\Models\Equipo;
+use App\Rules\EquipoNoDadoDeBaja;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -21,7 +22,12 @@ class UpdateEquipoEstadoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'estado' => ['required', 'string', Rule::in(Equipo::ESTADOS)],
+            'estado' => [
+                'required',
+                'string',
+                Rule::in(Equipo::ESTADOS),
+                new EquipoNoDadoDeBaja($this->route('equipo')),
+            ],
         ];
     }
 }

@@ -51,15 +51,6 @@ class EquipoController extends Controller
 
     public function actualizarEstado(UpdateEquipoEstadoRequest $request, Equipo $equipo): JsonResponse
     {
-        if ($equipo->estado === Equipo::ESTADO_TERMINAL) {
-            // HU-04: "un equipo dado de baja no debe poder ser prestado" —
-            // se cumple haciendo el estado irreversible, no solo bloqueando
-            // la transicion puntual a 'en_prestamo'.
-            return response()->json([
-                'message' => 'Un equipo dado de baja no puede cambiar de estado.',
-            ], 422);
-        }
-
         $equipo->update(['estado' => $request->validated('estado')]);
 
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
