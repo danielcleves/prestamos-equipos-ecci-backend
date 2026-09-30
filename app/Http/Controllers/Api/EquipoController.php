@@ -56,10 +56,20 @@ class EquipoController extends Controller
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
     }
 
-    public function historial(Equipo $equipo): JsonResponse
+    public function historial(Request $request, Equipo $equipo): JsonResponse
     {
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
+
+        $historial = $equipo->historialEstados()->with('usuario')->paginate($perPage);
+
         return response()->json([
-            'data' => HistorialEstadoResource::collection($equipo->historialEstados()->with('usuario')->get()),
+            'data' => HistorialEstadoResource::collection($historial),
+            'meta' => [
+                'current_page' => $historial->currentPage(),
+                'last_page' => $historial->lastPage(),
+                'per_page' => $historial->perPage(),
+                'total' => $historial->total(),
+            ],
         ]);
     }
 }

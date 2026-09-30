@@ -58,6 +58,21 @@ class EquipoControllerTest extends TestCase
         $this->getJson('/api/equipos')->assertOk();
     }
 
+    public function test_peticion_sin_autenticar_no_puede_consultar_historial(): void
+    {
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")->assertStatus(401);
+    }
+
+    public function test_cualquier_usuario_autenticado_puede_consultar_historial(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")->assertOk();
+    }
+
     public function test_per_page_invalido_se_normaliza_en_vez_de_fallar(): void
     {
         $this->actingAsUsuario();
@@ -269,12 +284,73 @@ class EquipoControllerTest extends TestCase
 
         $response = $this->getJson("/api/equipos/{$equipo->id}/historial")->assertOk();
 
+        // Estructura data + meta (sin links, consistente con index de equipos y usuarios)
+        $response->assertJsonStructure([
+            'data' => [
+                '*' => ['id', 'estado_anterior', 'estado_nuevo', 'usuario', 'fecha'],
+            ],
+            'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+        ]);
+
         // Mas reciente primero: disponible (vuelta) -> mantenimiento -> creacion.
         $response->assertJsonCount(3, 'data')
             ->assertJsonPath('data.0.estado_anterior', 'mantenimiento')
             ->assertJsonPath('data.0.estado_nuevo', 'disponible')
             ->assertJsonPath('data.1.estado_nuevo', 'mantenimiento')
-            ->assertJsonPath('data.2.estado_anterior', null);
+            ->assertJsonPath('data.2.estado_anterior', null)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.per_page', 15)
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 1);
+    }
+
+    public function test_historial_respeta_parametro_per_page(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento']);
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'disponible']);
+
+        // Con per_page=2: primera pagina con 2 registros y 2 paginas en total
+        $response = $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=2")
+            ->assertOk();
+
+        $response->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2);
+    }
+
+    public function test_per_page_de_historial_se_normaliza_ante_valores_fuera_de_rango(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=150")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=-5")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=0")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+    }
+
+    public function test_equipo_sin_historial_devuelve_data_vacio(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+        $equipo->historialEstados()->delete();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.current_page', 1);
     }
 
     public function test_historial_no_tiene_usuario_cuando_el_equipo_se_crea_sin_admin_autenticado(): void
