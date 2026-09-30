@@ -9,7 +9,7 @@ catálogo") y **HU-04** ("actualizar el estado de un equipo").
 |---|---|---|---|
 | `GET` | `/api/equipos` | Cualquier autenticado | Lista el catálogo, paginado (`?per_page=`, default 15, máx 100) |
 | `GET` | `/api/equipos/{equipo}` | Cualquier autenticado | Consulta un equipo puntual |
-| `GET` | `/api/equipos/{equipo}/historial` | Cualquier autenticado | Historial de cambios de `estado`, paginado (`?per_page=`, default 15, máx 100), más reciente primero |
+| `GET` | `/api/equipos/{equipo}/historial` | Cualquier autenticado | Historial de cambios de `estado`, paginado (`?per_page=`, default 15, máx 100), más reciente primero (responde `404` al rol `usuario` si el equipo está dado de baja) |
 | `POST` | `/api/equipos` | Solo `admin` | Registra un equipo nuevo |
 | `PATCH` | `/api/equipos/{equipo}/estado` | Solo `admin` | Cambia el `estado` del equipo |
 
@@ -44,7 +44,9 @@ para administrar categorías.
   Así se cumple que un equipo dado de baja nunca puede llegar a `en_prestamo`.
 - Cada cambio de `estado` (incluida la asignación inicial al registrar)
   queda registrado en `historial_estados`, con quién lo hizo y cuándo —
-  consultable en `GET /api/equipos/{equipo}/historial`.
+  consultable en `GET /api/equipos/{equipo}/historial`. Si el equipo se
+  encuentra `dado_de_baja`, este endpoint responde `404` (`Recurso no encontrado.`)
+  al rol `usuario`, la misma regla de visibilidad que aplica a `GET /api/equipos/{equipo}`.
 - `mantenimiento` y `dado_de_baja` no filtran nada todavía en
   `GET /api/equipos` — HU-05 ("consultar equipos disponibles") es quien
   agrega ese filtro; por ahora el catálogo lista todos los equipos sin
@@ -167,6 +169,14 @@ Respuesta (`200`):
     "per_page": 15,
     "total": 2
   }
+}
+```
+
+Si el equipo se encuentra `dado_de_baja` y se consulta con token de rol `usuario`, responde `404 Not Found`:
+
+```json
+{
+  "message": "Recurso no encontrado."
 }
 ```
 

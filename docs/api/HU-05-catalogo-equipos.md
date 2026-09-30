@@ -12,6 +12,7 @@ Extiende la consulta de catálogo iniciada en HU-03 incorporando cálculo de dis
 |---|---|---|---|---|
 | `GET` | `/api/equipos` | Bearer Token Sanctum | Cualquier autenticado (`admin`, `encargado`, `usuario`) | Listado paginado con filtros y ordenamiento |
 | `GET` | `/api/equipos/{equipo}` | Bearer Token Sanctum | Cualquier autenticado | Detalle completo de un equipo puntual |
+| `GET` | `/api/equipos/{equipo}/historial` | Bearer Token Sanctum | Cualquier autenticado | Historial de cambios de estado (responde `404` al rol `usuario` si el equipo está dado de baja) |
 
 ### Cabeceras requeridas
 
@@ -82,8 +83,8 @@ El sistema implementa dos reglas de visibilidad basadas en el método `User::esP
 
 ### 4.1 Visibilidad de equipos dados de baja
 El estado `dado_de_baja` representa un equipo retirado del servicio.
-- **`admin` y `encargado`:** pueden ver equipos en estado `dado_de_baja` tanto en el listado general (`GET /api/equipos`) como en el detalle puntual (`GET /api/equipos/{id}`).
-- **`usuario` (solicitante) y cualquier otro rol:** los equipos `dado_de_baja` **nunca aparecen** en el listado general, y consultar su detalle puntual devuelve `404 Recurso no encontrado.`, exactamente idéntico a consultar un ID inexistente. De esta forma no se revela la existencia del equipo.
+- **`admin` y `encargado`:** pueden ver equipos en estado `dado_de_baja` tanto en el listado general (`GET /api/equipos`), en el detalle puntual (`GET /api/equipos/{id}`), como en su historial de estados (`GET /api/equipos/{id}/historial`).
+- **`usuario` (solicitante) y cualquier otro rol:** los equipos `dado_de_baja` **nunca aparecen** en el listado general, y consultar su detalle puntual (`GET /api/equipos/{id}`) o su historial (`GET /api/equipos/{id}/historial`) devuelve `404 Recurso no encontrado.`, exactamente idéntico a consultar un ID inexistente. De esta forma no se revela la existencia del equipo ni su historial.
 
 ### 4.2 Visibilidad del campo interno `observaciones`
 El campo `observaciones` contiene notas de control interno, inventario o calibración del personal administrativo.
@@ -375,5 +376,5 @@ Accept: application/json
   "message": "Recurso no encontrado."
 }
 ```
-*(Idéntica respuesta a consultar un ID inexistente)*
+*(Idéntica respuesta a consultar un ID inexistente. La misma regla de visibilidad aplica a `GET /api/equipos/5/historial`, que responde `404` si el equipo está dado de baja).*
 

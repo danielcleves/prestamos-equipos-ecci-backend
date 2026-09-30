@@ -34,6 +34,16 @@ class Equipo extends Model
     public const ESTADOS = [self::ESTADO_DISPONIBLE, 'en_prestamo', 'mantenimiento', self::ESTADO_DADO_DE_BAJA];
 
     /**
+     * Determina si el usuario tiene permisos para ver equipos dados de baja.
+     * Seguro por defecto: solo el personal administrativo (admin y encargado)
+     * puede verlos; cualquier otro rol o usuario sin roles no tiene acceso.
+     */
+    public static function puedeVerDadosDeBaja(?User $user): bool
+    {
+        return $user?->esPersonalAdministrativo() ?? false;
+    }
+
+    /**
      * Determina si el equipo esta disponible para prestamo.
      *
      * Esta regla y el scopeDisponible() son la unica fuente de verdad de
