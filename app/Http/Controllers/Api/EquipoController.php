@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreEquipoRequest;
+use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
+use App\Http\Resources\HistorialEstadoResource;
 use App\Models\Equipo;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,5 +47,29 @@ class EquipoController extends Controller
     public function show(Equipo $equipo): JsonResponse
     {
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
+    }
+
+    public function actualizarEstado(UpdateEquipoEstadoRequest $request, Equipo $equipo): JsonResponse
+    {
+        $equipo->update(['estado' => $request->validated('estado')]);
+
+        return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
+    }
+
+    public function historial(Request $request, Equipo $equipo): JsonResponse
+    {
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
+
+        $historial = $equipo->historialEstados()->with('usuario')->paginate($perPage);
+
+        return response()->json([
+            'data' => HistorialEstadoResource::collection($historial),
+            'meta' => [
+                'current_page' => $historial->currentPage(),
+                'last_page' => $historial->lastPage(),
+                'per_page' => $historial->perPage(),
+                'total' => $historial->total(),
+            ],
+        ]);
     }
 }

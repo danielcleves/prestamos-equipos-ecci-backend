@@ -58,6 +58,21 @@ class EquipoControllerTest extends TestCase
         $this->getJson('/api/equipos')->assertOk();
     }
 
+    public function test_peticion_sin_autenticar_no_puede_consultar_historial(): void
+    {
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")->assertStatus(401);
+    }
+
+    public function test_cualquier_usuario_autenticado_puede_consultar_historial(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")->assertOk();
+    }
+
     public function test_per_page_invalido_se_normaliza_en_vez_de_fallar(): void
     {
         $this->actingAsUsuario();
@@ -173,6 +188,179 @@ class EquipoControllerTest extends TestCase
         $this->getJson("/api/equipos/{$equipo->id}")
             ->assertOk()
             ->assertJsonPath('data.id', $equipo->id);
+    }
+
+    // --- Cambiar estado (HU-04) ---
+
+    public function test_admin_puede_cambiar_el_estado_de_un_equipo(): void
+    {
+        $admin = $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create(); // estado inicial: disponible
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento'])
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'mantenimiento');
+
+        $this->assertDatabaseHas('historial_estados', [
+            'equipo_id' => $equipo->id,
+            'estado_anterior' => 'disponible',
+            'estado_nuevo' => 'mantenimiento',
+            'user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_cambio_de_estado_genera_exactamente_un_registro_de_historial(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        // 1 registro generado por la creacion inicial (observer 'created')
+        $this->assertDatabaseCount('historial_estados', 1);
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento'])
+            ->assertOk();
+
+        // Exactamente un registro adicional por la transicion (observer 'updated')
+        $this->assertDatabaseCount('historial_estados', 2);
+        $this->assertSame(2, $equipo->historialEstados()->count());
+    }
+
+    public function test_usuario_sin_rol_admin_no_puede_cambiar_estado(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento'])
+            ->assertStatus(403);
+    }
+
+    public function test_cambiar_estado_exige_un_valor_valido(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'perdido'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['estado']);
+    }
+
+    public function test_equipo_dado_de_baja_no_puede_volver_a_cambiar_de_estado(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create(['estado' => 'dado_de_baja']);
+        $conteoInicialHistorial = $equipo->historialEstados()->count();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'disponible'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['estado'])
+            ->assertJsonPath('errors.estado.0', 'Un equipo dado de baja no puede cambiar de estado.');
+
+        $this->assertSame('dado_de_baja', $equipo->fresh()->estado);
+        $this->assertSame($conteoInicialHistorial, $equipo->historialEstados()->count());
+    }
+
+    public function test_registrar_equipo_crea_la_entrada_inicial_del_historial(): void
+    {
+        $admin = $this->actingAsAdmin();
+
+        $response = $this->postJson('/api/equipos', $this->datosValidos());
+        $equipoId = $response->json('data.id');
+
+        $this->assertDatabaseHas('historial_estados', [
+            'equipo_id' => $equipoId,
+            'estado_anterior' => null,
+            'estado_nuevo' => 'disponible',
+            'user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_puede_consultar_el_historial_de_un_equipo(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento']);
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'disponible']);
+
+        $response = $this->getJson("/api/equipos/{$equipo->id}/historial")->assertOk();
+
+        // Estructura data + meta (sin links, consistente con index de equipos y usuarios)
+        $response->assertJsonStructure([
+            'data' => [
+                '*' => ['id', 'estado_anterior', 'estado_nuevo', 'usuario', 'fecha'],
+            ],
+            'meta' => ['current_page', 'last_page', 'per_page', 'total'],
+        ]);
+
+        // Mas reciente primero: disponible (vuelta) -> mantenimiento -> creacion.
+        $response->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.estado_anterior', 'mantenimiento')
+            ->assertJsonPath('data.0.estado_nuevo', 'disponible')
+            ->assertJsonPath('data.1.estado_nuevo', 'mantenimiento')
+            ->assertJsonPath('data.2.estado_anterior', null)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.per_page', 15)
+            ->assertJsonPath('meta.current_page', 1)
+            ->assertJsonPath('meta.last_page', 1);
+    }
+
+    public function test_historial_respeta_parametro_per_page(): void
+    {
+        $this->actingAsAdmin();
+        $equipo = Equipo::factory()->create();
+
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'mantenimiento']);
+        $this->patchJson("/api/equipos/{$equipo->id}/estado", ['estado' => 'disponible']);
+
+        // Con per_page=2: primera pagina con 2 registros y 2 paginas en total
+        $response = $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=2")
+            ->assertOk();
+
+        $response->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3)
+            ->assertJsonPath('meta.last_page', 2);
+    }
+
+    public function test_per_page_de_historial_se_normaliza_ante_valores_fuera_de_rango(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=150")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=-5")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial?per_page=0")
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 1);
+    }
+
+    public function test_equipo_sin_historial_devuelve_data_vacio(): void
+    {
+        $this->actingAsUsuario();
+        $equipo = Equipo::factory()->create();
+        $equipo->historialEstados()->delete();
+
+        $this->getJson("/api/equipos/{$equipo->id}/historial")
+            ->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.current_page', 1);
+    }
+
+    public function test_historial_no_tiene_usuario_cuando_el_equipo_se_crea_sin_admin_autenticado(): void
+    {
+        $equipo = Equipo::factory()->create();
+
+        $this->assertDatabaseHas('historial_estados', [
+            'equipo_id' => $equipo->id,
+            'user_id' => null,
+        ]);
     }
 
     /**

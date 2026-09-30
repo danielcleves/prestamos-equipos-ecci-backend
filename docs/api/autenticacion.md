@@ -16,7 +16,7 @@ protegida.
 
 - `/api/login` está limitado a **6 intentos por minuto por IP** (`throttle:6,1`); el séptimo intento devuelve `429`.
 - Credenciales inválidas y correo inexistente devuelven **el mismo mensaje de error**, para no dejar averiguar qué correos están registrados.
-- Un usuario con `is_active = false` no puede iniciar sesión aunque la contraseña sea correcta: devuelve `422` con un mensaje distinto ("Tu cuenta esta desactivada..."). Hoy ese campo solo se puede cambiar por base de datos/Tinker; el endpoint para administrarlo llega con la gestión de usuarios.
+- Un usuario con `is_active = false` no puede iniciar sesión aunque la contraseña sea correcta: devuelve `422` con un mensaje distinto ("Tu cuenta esta desactivada..."). Se administra mediante los endpoints de activación/desactivación en la gestión de usuarios (ver [`docs/api/usuarios.md`](usuarios.md)).
 - Todos los errores de la API siguen el formato `{ "message": "...", "errors": {...} }`.
 
 ## Respuestas de ejemplo
@@ -92,8 +92,19 @@ curl -i -X POST http://localhost:8000/api/logout \
 
 ## Cómo probar el caso de usuario desactivado
 
-Todavía no hay endpoint para activar/desactivar usuarios (llega con la
-gestión de usuarios y roles), así que se hace por Tinker:
+Se puede desactivar/activar mediante el endpoint de administración (requiere rol `admin`, ver [`docs/api/usuarios.md`](usuarios.md)):
+
+```sh
+# Desactivar con la API (como admin)
+curl -i -X PATCH http://localhost:8000/api/usuarios/<id>/desactivar \
+  -H "Authorization: Bearer <token-admin>"
+
+# Reactivar con la API (como admin)
+curl -i -X PATCH http://localhost:8000/api/usuarios/<id>/activar \
+  -H "Authorization: Bearer <token-admin>"
+```
+
+O alternativamente por Tinker:
 
 ```sh
 # Desactivar
