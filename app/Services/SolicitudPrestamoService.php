@@ -1,0 +1,104 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\EstadoPrestamo;
+use App\Models\Equipo;
+use App\Models\Prestamo;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class SolicitudPrestamoService
+{
+    /**
+     * Registra una nueva solicitud de préstamo dentro de una transacción.
+     *
+     * @param  array{
+     *     equipo_id: int,
+     *     motivo: string,
+     *     fecha_inicio: string,
+     *     fecha_devolucion_estimada: string
+     * }  $data
+     *
+     * @throws ValidationException
+     */
+    public function solicitar(User $usuario, array $data): Prestamo
+    {
+        return DB::transaction(function () use ($usuario, $data) {
+            // Se bloquea el equipo con lockForUpdate() dentro de la transacción y ANTES de las
+            // validaciones de disponibilidad, cruce de fechas y límite de activos por usuario.
+            // Esto asegura consistencia en entornos concurrentes como MySQL 8.0.
+            // Nota: lockForUpdate() no bloquea en SQLite (los tests automatizados no cubren la carrera de concurrencia).
+            $equipo = Equipo::whereKey($data['equipo_id'])->lockForUpdate()->firstOrFail();
+
+            // 1. El equipo debe cumplir Equipo::isDisponible() (única fuente de verdad de la HU-05)
+            if (! $equipo->isDisponible()) {
+                if ($equipo->isDadoDeBaja()) {
+                    throw ValidationException::withMessages([
+                        'equipo_id' => 'El equipo seleccionado ha sido dado de baja y no puede solicitarse.',
+                    ]);
+                }
+
+                if ($equipo->estado === Equipo::ESTADO_MANTENIMIENTO) {
+                    throw ValidationException::withMessages([
+                        'equipo_id' => 'El equipo seleccionado se encuentra en mantenimiento y no está disponible para préstamo.',
+                    ]);
+                }
+
+                throw ValidationException::withMessages([
+                    'equipo_id' => 'El equipo seleccionado no se encuentra disponible para préstamo.',
+                ]);
+            }
+
+            $fechaInicio = Carbon::parse($data['fecha_inicio']);
+            $fechaDevolucionEstimada = Carbon::parse($data['fecha_devolucion_estimada']);
+
+            // 2. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
+            $hayCruce = Prestamo::where('equipo_id', $equipo->id)
+                ->whereIn('estado', [
+                    EstadoPrestamo::Solicitado->value,
+                    EstadoPrestamo::Aprobado->value,
+                    EstadoPrestamo::Entregado->value,
+                ])
+                ->where('fecha_inicio', '<', $fechaDevolucionEstimada)
+                ->where('fecha_devolucion_estimada', '>', $fechaInicio)
+                ->exists();
+
+            if ($hayCruce) {
+                throw ValidationException::withMessages([
+                    'equipo_id' => 'El equipo ya cuenta con un préstamo solicitado o activo durante el período seleccionado.',
+                ]);
+            }
+
+            // 3. El usuario no debe superar config('prestamos.max_activos_por_usuario') (cuenta solicitado, aprobado, entregado)
+            $maxActivos = (int) config('prestamos.max_activos_por_usuario', 3);
+            $activosUsuario = Prestamo::where('usuario_id', $usuario->id)
+                ->whereIn('estado', [
+                    EstadoPrestamo::Solicitado->value,
+                    EstadoPrestamo::Aprobado->value,
+                    EstadoPrestamo::Entregado->value,
+                ])
+                ->count();
+
+            if ($activosUsuario >= $maxActivos) {
+                throw ValidationException::withMessages([
+                    'usuario_id' => "Has alcanzado el límite máximo de {$maxActivos} préstamos activos.",
+                ]);
+            }
+
+            // 4. Se crea el préstamo en estado solicitado con fecha_solicitud = now().
+            // La solicitud NO cambia el estado del equipo.
+            return Prestamo::create([
+                'usuario_id' => $usuario->id,
+                'equipo_id' => $equipo->id,
+                'estado' => EstadoPrestamo::Solicitado,
+                'motivo' => $data['motivo'],
+                'fecha_solicitud' => now(),
+                'fecha_inicio' => $fechaInicio,
+                'fecha_devolucion_estimada' => $fechaDevolucionEstimada,
+            ]);
+        });
+    }
+}
