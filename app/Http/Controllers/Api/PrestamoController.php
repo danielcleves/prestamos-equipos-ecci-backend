@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\EstadoPrestamo;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\DevolucionPrestamoRequest;
 use App\Http\Requests\Api\EntregaPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
+use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
 use App\Services\SolicitudPrestamoService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -28,6 +32,45 @@ class PrestamoController extends Controller
 
         if (! $request->user()->esPersonalAdministrativo()) {
             $query->where('usuario_id', $request->user()->id);
+        }
+
+        $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
+
+        return response()->json([
+            'data' => PrestamoResource::collection($prestamos),
+            'meta' => [
+                'current_page' => $prestamos->currentPage(),
+                'last_page' => $prestamos->lastPage(),
+                'per_page' => $prestamos->perPage(),
+                'total' => $prestamos->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * HU-11: Lista los préstamos activos (en estado 'entregado') con soporte de búsqueda
+     * por código o nombre de equipo, o nombre o correo del solicitante (solo personal autorizado).
+     */
+    public function activos(Request $request): JsonResponse
+    {
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
+
+        $query = Prestamo::with(['equipo.categoria', 'solicitante', 'entregadoPor'])
+            ->where('estado', EstadoPrestamo::Entregado->value);
+
+        if ($request->filled('buscar')) {
+            $texto = $request->string('buscar')->toString();
+            $escapado = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $texto);
+
+            $query->where(function (Builder $q) use ($escapado) {
+                $q->whereHas('equipo', function (Builder $eq) use ($escapado) {
+                    $eq->whereRaw("codigo LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                        ->orWhereRaw("nombre LIKE ? ESCAPE '!'", ["%{$escapado}%"]);
+                })->orWhereHas('solicitante', function (Builder $usr) use ($escapado) {
+                    $usr->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                        ->orWhereRaw("email LIKE ? ESCAPE '!'", ["%{$escapado}%"]);
+                });
+            });
         }
 
         $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
@@ -99,6 +142,30 @@ class PrestamoController extends Controller
                 'equipo.categoria',
                 'solicitante',
                 'entregadoPor',
+            ])),
+        ]);
+    }
+
+    /**
+     * HU-11: Registra la devolución del equipo prestado (solo personal autorizado).
+     */
+    public function devolucion(
+        DevolucionPrestamoRequest $request,
+        Prestamo $prestamo,
+        DevolucionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->registrarDevolucion(
+            $prestamo,
+            $request->user(),
+            $request->validated()
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load([
+                'equipo.categoria',
+                'solicitante',
+                'entregadoPor',
+                'recibidoPor',
             ])),
         ]);
     }

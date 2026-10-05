@@ -43,14 +43,19 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::patch('/equipos/{equipo}/estado', [EquipoController::class, 'actualizarEstado']);
 });
 
+// Rutas de préstamos para personal administrativo (admin y encargado):
+// - HU-11: consulta de préstamos activos (registrada ANTES de /prestamos/{prestamo} para evitar colisión)
+// - HU-09: registro de entrega
+// - HU-11: registro de devolución
+Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+    Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
+    Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
+    Route::post('/prestamos/{prestamo}/devolucion', [PrestamoController::class, 'devolucion']);
+});
+
 // HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/prestamos', [PrestamoController::class, 'index']);
     Route::post('/prestamos', [PrestamoController::class, 'store']);
     Route::get('/prestamos/{prestamo}', [PrestamoController::class, 'show']);
-});
-
-// HU-09: Registro de entrega de equipo (personal administrativo: admin y encargado).
-Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
-    Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
 });
