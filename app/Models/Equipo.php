@@ -21,6 +21,10 @@ class Equipo extends Model
 
     public const ESTADO_DISPONIBLE = 'disponible';
 
+    public const ESTADO_EN_PRESTAMO = 'en_prestamo';
+
+    public const ESTADO_MANTENIMIENTO = 'mantenimiento';
+
     public const ESTADO_INICIAL = self::ESTADO_DISPONIBLE;
 
     public const ESTADO_DADO_DE_BAJA = 'dado_de_baja';
@@ -31,7 +35,12 @@ class Equipo extends Model
      */
     public const ESTADO_TERMINAL = self::ESTADO_DADO_DE_BAJA;
 
-    public const ESTADOS = [self::ESTADO_DISPONIBLE, 'en_prestamo', 'mantenimiento', self::ESTADO_DADO_DE_BAJA];
+    public const ESTADOS = [
+        self::ESTADO_DISPONIBLE,
+        self::ESTADO_EN_PRESTAMO,
+        self::ESTADO_MANTENIMIENTO,
+        self::ESTADO_DADO_DE_BAJA,
+    ];
 
     /**
      * Determina si el usuario tiene permisos para ver equipos dados de baja.
