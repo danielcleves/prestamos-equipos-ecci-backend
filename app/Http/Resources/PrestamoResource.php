@@ -16,7 +16,17 @@ class PrestamoResource extends JsonResource
         return [
             'id' => $this->id,
             'usuario_id' => $this->usuario_id,
-            'solicitante' => $this->whenLoaded('solicitante', fn () => new UserResource($this->solicitante)),
+            'solicitante' => $this->whenLoaded('solicitante', function () use ($request) {
+                $esPersonal = $request->user()?->esPersonalAdministrativo() ?? false;
+
+                return [
+                    'id' => $this->solicitante->id,
+                    'name' => $this->solicitante->name,
+                    'email' => $this->when($esPersonal, $this->solicitante->email),
+                    'is_active' => $this->when($esPersonal, $this->solicitante->is_active),
+                    'roles' => $this->when($esPersonal, fn () => $this->solicitante->getRoleNames()),
+                ];
+            }),
             'equipo_id' => $this->equipo_id,
             'equipo' => $this->whenLoaded('equipo', fn () => new EquipoResource($this->equipo)),
             'estado' => $this->estado->value,
@@ -33,9 +43,15 @@ class PrestamoResource extends JsonResource
             'condicion_devolucion' => $this->condicion_devolucion?->value,
             'condicion_devolucion_etiqueta' => $this->condicion_devolucion?->etiqueta(),
             'entregado_por' => $this->entregado_por,
-            'usuario_entrega' => $this->whenLoaded('entregadoPor', fn () => new UserResource($this->entregadoPor)),
+            'usuario_entrega' => $this->whenLoaded('entregadoPor', fn () => [
+                'id' => $this->entregadoPor->id,
+                'name' => $this->entregadoPor->name,
+            ]),
             'recibido_por' => $this->recibido_por,
-            'usuario_recepcion' => $this->whenLoaded('recibidoPor', fn () => new UserResource($this->recibidoPor)),
+            'usuario_recepcion' => $this->whenLoaded('recibidoPor', fn () => [
+                'id' => $this->recibidoPor->id,
+                'name' => $this->recibidoPor->name,
+            ]),
             'observaciones' => $this->observaciones,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

@@ -82,10 +82,7 @@ Content-Type: application/json
     "usuario_id": 4,
     "solicitante": {
       "id": 4,
-      "name": "Carlos Mendoza",
-      "email": "carlos.mendoza@ecci.edu.co",
-      "is_active": true,
-      "roles": ["usuario"]
+      "name": "Carlos Mendoza"
     },
     "equipo_id": 12,
     "equipo": {
@@ -139,7 +136,125 @@ Lista paginada de préstamos:
 
 ---
 
-## 4. Préstamos Activos (`GET /api/prestamos/activos` — HU-11)
+## 4. Detalle de Préstamo (`GET /api/prestamos/{prestamo}`)
+
+Consulta el detalle puntual de un préstamo.
+- **Acceso:** El solicitante dueño del préstamo, administradores y encargados (`PrestamoPolicy`).
+- **Privacidad de datos de usuarios anidados:**
+  - `usuario_entrega` y `usuario_recepcion`: Siempre devuelven únicamente `{ "id": int, "name": string }` (mismo formato mínimo de `HistorialEstadoResource`).
+  - `solicitante`: Para rol `usuario` devuelve solo `{ "id": int, "name": string }`. Para roles administrativos (`admin`, `encargado`) incluye además `{ "email": string, "is_active": bool, "roles": [...] }`.
+
+#### Ejemplo para rol `usuario`:
+```json
+{
+  "data": {
+    "id": 1,
+    "usuario_id": 4,
+    "solicitante": {
+      "id": 4,
+      "name": "Prueba Usuario"
+    },
+    "equipo_id": 1,
+    "equipo": {
+      "id": 1,
+      "codigo": "PRUEBA-001",
+      "nombre": "Portátil de prueba",
+      "categoria": { "id": 1, "nombre": "Pruebas" },
+      "descripcion": null,
+      "disponible": false,
+      "puede_solicitarse": false,
+      "estado_disponibilidad": "no_disponible",
+      "estado": "mantenimiento"
+    },
+    "estado": "devuelto",
+    "estado_etiqueta": "Devuelto",
+    "motivo": "Practica de laboratorio",
+    "fecha_solicitud": "2026-10-05T14:58:38-05:00",
+    "fecha_inicio": "2026-10-06T08:00:00-05:00",
+    "fecha_devolucion_estimada": "2026-10-07T17:00:00-05:00",
+    "fecha_aprobacion": "2026-10-05T14:59:18-05:00",
+    "fecha_entrega_real": "2026-10-05T14:59:32-05:00",
+    "fecha_devolucion_real": "2026-10-05T14:59:40-05:00",
+    "condicion_entrega": "bueno",
+    "condicion_entrega_etiqueta": "Bueno",
+    "condicion_devolucion": "con_danos",
+    "condicion_devolucion_etiqueta": "Con daños",
+    "entregado_por": 5,
+    "usuario_entrega": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
+    "recibido_por": 5,
+    "usuario_recepcion": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
+    "observaciones": "Entrega: Se entrega con cargador\nDevolución: Golpe en la esquina",
+    "created_at": "2026-10-05T19:58:38+00:00",
+    "updated_at": "2026-10-05T19:59:40+00:00"
+  }
+}
+```
+
+#### Ejemplo para rol `encargado` o `admin`:
+```json
+{
+  "data": {
+    "id": 1,
+    "usuario_id": 4,
+    "solicitante": {
+      "id": 4,
+      "name": "Prueba Usuario",
+      "email": "prueba.usuario@test.com",
+      "is_active": true,
+      "roles": ["usuario"]
+    },
+    "equipo_id": 1,
+    "equipo": {
+      "id": 1,
+      "codigo": "PRUEBA-001",
+      "nombre": "Portátil de prueba",
+      "categoria": { "id": 1, "nombre": "Pruebas" },
+      "descripcion": null,
+      "disponible": false,
+      "puede_solicitarse": false,
+      "estado_disponibilidad": "no_disponible",
+      "estado": "mantenimiento",
+      "observaciones": null
+    },
+    "estado": "devuelto",
+    "estado_etiqueta": "Devuelto",
+    "motivo": "Practica de laboratorio",
+    "fecha_solicitud": "2026-10-05T14:58:38-05:00",
+    "fecha_inicio": "2026-10-06T08:00:00-05:00",
+    "fecha_devolucion_estimada": "2026-10-07T17:00:00-05:00",
+    "fecha_aprobacion": "2026-10-05T14:59:18-05:00",
+    "fecha_entrega_real": "2026-10-05T14:59:32-05:00",
+    "fecha_devolucion_real": "2026-10-05T14:59:40-05:00",
+    "condicion_entrega": "bueno",
+    "condicion_entrega_etiqueta": "Bueno",
+    "condicion_devolucion": "con_danos",
+    "condicion_devolucion_etiqueta": "Con daños",
+    "entregado_por": 5,
+    "usuario_entrega": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
+    "recibido_por": 5,
+    "usuario_recepcion": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
+    "observaciones": "Entrega: Se entrega con cargador\nDevolución: Golpe en la esquina",
+    "created_at": "2026-10-05T19:58:38+00:00",
+    "updated_at": "2026-10-05T19:59:40+00:00"
+  }
+}
+```
+
+---
+
+## 5. Préstamos Activos (`GET /api/prestamos/activos` — HU-11)
 
 Exclusivo para roles `admin` y `encargado`. Devuelve préstamos actualmente en posesión del solicitante (`estado = 'entregado'`).
 
@@ -151,7 +266,7 @@ Exclusivo para roles `admin` y `encargado`. Devuelve préstamos actualmente en p
 
 ---
 
-## 5. Registro de Entrega (`POST /api/prestamos/{prestamo}/entrega` — HU-09)
+## 6. Registro de Entrega (`POST /api/prestamos/{prestamo}/entrega` — HU-09)
 
 Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha sido entregado al solicitante.
 
@@ -179,7 +294,7 @@ Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha si
 
 ---
 
-## 6. Registro de Devolución (`POST /api/prestamos/{prestamo}/devolucion` — HU-11)
+## 7. Registro de Devolución (`POST /api/prestamos/{prestamo}/devolucion` — HU-11)
 
 Exclusivo para roles `admin` y `encargado`. Registra la recepción física del equipo devuelto.
 

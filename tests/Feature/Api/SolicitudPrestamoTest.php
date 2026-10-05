@@ -539,4 +539,106 @@ class SolicitudPrestamoTest extends TestCase
         // El modelo en memoria sigue intacto en UTC
         $this->assertSame('UTC', $prestamo->fecha_inicio->timezoneName);
     }
+
+    public function test_rol_usuario_en_detalle_y_listado_no_recibe_email_ni_roles_de_personal_ni_solicitante(): void
+    {
+        $usuario = User::factory()->create(['name' => 'Estudiante Prueba', 'email' => 'estudiante@ecci.edu.co']);
+        $usuario->assignRole('usuario');
+
+        $personalEntrega = User::factory()->create(['name' => 'Encargado Entrega', 'email' => 'entrega@ecci.edu.co']);
+        $personalEntrega->assignRole('encargado');
+
+        $personalRecepcion = User::factory()->create(['name' => 'Encargado Recepcion', 'email' => 'recepcion@ecci.edu.co']);
+        $personalRecepcion->assignRole('encargado');
+
+        $prestamo = Prestamo::factory()->devuelto()->create([
+            'usuario_id' => $usuario->id,
+            'entregado_por' => $personalEntrega->id,
+            'recibido_por' => $personalRecepcion->id,
+        ]);
+
+        // 1. Detalle GET /api/prestamos/{prestamo}
+        $resDetalle = $this->actingAs($usuario, 'sanctum')->getJson("/api/prestamos/{$prestamo->id}");
+        $resDetalle->assertStatus(200);
+
+        // solicitante: solo id y name para rol usuario
+        $resDetalle->assertJsonPath('data.solicitante.id', $usuario->id)
+            ->assertJsonPath('data.solicitante.name', 'Estudiante Prueba')
+            ->assertJsonMissingPath('data.solicitante.email')
+            ->assertJsonMissingPath('data.solicitante.is_active')
+            ->assertJsonMissingPath('data.solicitante.roles');
+
+        // usuario_entrega y usuario_recepcion: exactamente id y name
+        $this->assertSame(
+            ['id' => $personalEntrega->id, 'name' => 'Encargado Entrega'],
+            $resDetalle->json('data.usuario_entrega')
+        );
+        $this->assertSame(
+            ['id' => $personalRecepcion->id, 'name' => 'Encargado Recepcion'],
+            $resDetalle->json('data.usuario_recepcion')
+        );
+
+        // 2. Listado GET /api/prestamos
+        $resListado = $this->actingAs($usuario, 'sanctum')->getJson('/api/prestamos');
+        $resListado->assertStatus(200);
+
+        $resListado->assertJsonPath('data.0.solicitante.id', $usuario->id)
+            ->assertJsonMissingPath('data.0.solicitante.email')
+            ->assertJsonMissingPath('data.0.solicitante.roles');
+
+        $this->assertSame(
+            ['id' => $personalEntrega->id, 'name' => 'Encargado Entrega'],
+            $resListado->json('data.0.usuario_entrega')
+        );
+        $this->assertSame(
+            ['id' => $personalRecepcion->id, 'name' => 'Encargado Recepcion'],
+            $resListado->json('data.0.usuario_recepcion')
+        );
+    }
+
+    public function test_rol_encargado_en_detalle_y_listado_recibe_email_de_solicitante_y_personal_reducido(): void
+    {
+        $usuario = User::factory()->create(['name' => 'Estudiante Prueba', 'email' => 'estudiante@ecci.edu.co']);
+        $usuario->assignRole('usuario');
+
+        $encargado = User::factory()->create(['name' => 'Encargado Auditor', 'email' => 'auditor@ecci.edu.co']);
+        $encargado->assignRole('encargado');
+
+        $prestamo = Prestamo::factory()->devuelto()->create([
+            'usuario_id' => $usuario->id,
+            'entregado_por' => $encargado->id,
+            'recibido_por' => $encargado->id,
+        ]);
+
+        // 1. Detalle GET /api/prestamos/{prestamo}
+        $resDetalle = $this->actingAs($encargado, 'sanctum')->getJson("/api/prestamos/{$prestamo->id}");
+        $resDetalle->assertStatus(200);
+
+        // solicitante: personal administrativo sí ve email, is_active y roles
+        $resDetalle->assertJsonPath('data.solicitante.id', $usuario->id)
+            ->assertJsonPath('data.solicitante.name', 'Estudiante Prueba')
+            ->assertJsonPath('data.solicitante.email', 'estudiante@ecci.edu.co')
+            ->assertJsonPath('data.solicitante.is_active', true)
+            ->assertJsonPath('data.solicitante.roles', ['usuario']);
+
+        // usuario_entrega y usuario_recepcion: siempre reducidos (id y name)
+        $this->assertSame(
+            ['id' => $encargado->id, 'name' => 'Encargado Auditor'],
+            $resDetalle->json('data.usuario_entrega')
+        );
+        $this->assertSame(
+            ['id' => $encargado->id, 'name' => 'Encargado Auditor'],
+            $resDetalle->json('data.usuario_recepcion')
+        );
+
+        // 2. Listado GET /api/prestamos
+        $resListado = $this->actingAs($encargado, 'sanctum')->getJson('/api/prestamos');
+        $resListado->assertStatus(200);
+
+        $resListado->assertJsonPath('data.0.solicitante.email', 'estudiante@ecci.edu.co');
+        $this->assertSame(
+            ['id' => $encargado->id, 'name' => 'Encargado Auditor'],
+            $resListado->json('data.0.usuario_entrega')
+        );
+    }
 }
