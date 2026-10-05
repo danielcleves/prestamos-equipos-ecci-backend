@@ -91,14 +91,7 @@ class PrestamoController extends Controller
      */
     public function store(StorePrestamoRequest $request, SolicitudPrestamoService $service): JsonResponse
     {
-        $data = $request->safe()->only([
-            'equipo_id',
-            'motivo',
-            'fecha_inicio',
-            'fecha_devolucion_estimada',
-        ]);
-
-        $prestamo = $service->solicitar($request->user(), $data);
+        $prestamo = $service->solicitar($request->user(), $request->validated());
 
         return response()->json([
             'data' => new PrestamoResource($prestamo->load(['equipo.categoria', 'solicitante'])),

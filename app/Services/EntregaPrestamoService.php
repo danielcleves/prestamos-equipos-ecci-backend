@@ -7,6 +7,8 @@ use App\Enums\EstadoPrestamo;
 use App\Models\Equipo;
 use App\Models\Prestamo;
 use App\Models\User;
+use App\Support\FechaNegocio;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,7 +24,7 @@ class EntregaPrestamoService
      * y la actualización del estado del equipo a 'en_prestamo'.
      *
      * @param  array{
-     *     fecha_entrega_real?: string|null,
+     *     fecha_entrega_real?: CarbonInterface|string|null,
      *     condicion_entrega?: CondicionEquipo|string|null,
      *     observaciones?: string|null
      * }  $datos
@@ -49,6 +51,24 @@ class EntregaPrestamoService
                     : CondicionEquipo::from($datos['condicion_entrega']))
                 : CondicionEquipo::Bueno;
 
+            $fechaEntrega = isset($datos['fecha_entrega_real']) && $datos['fecha_entrega_real'] !== null
+                ? ($datos['fecha_entrega_real'] instanceof CarbonInterface
+                    ? $datos['fecha_entrega_real']
+                    : FechaNegocio::parsear($datos['fecha_entrega_real']))
+                : now();
+
+            if ($fechaEntrega->isAfter(now()->addMinute())) {
+                throw ValidationException::withMessages([
+                    'fecha_entrega_real' => 'La fecha de entrega real no puede ser posterior al momento actual.',
+                ]);
+            }
+
+            if ($prestamo->fecha_aprobacion && $fechaEntrega->isBefore($prestamo->fecha_aprobacion)) {
+                throw ValidationException::withMessages([
+                    'fecha_entrega_real' => 'La fecha de entrega real no puede ser anterior a la fecha de aprobación del préstamo.',
+                ]);
+            }
+
             // 2. Transición del préstamo (TransicionPrestamoService bloquea el préstamo en segundo lugar)
             // Se debe usar la instancia fresca retornada por el servicio
             $prestamoActualizado = $this->transicionService->transicionar(
@@ -56,7 +76,7 @@ class EntregaPrestamoService
                 EstadoPrestamo::Entregado,
                 [
                     'actor' => $personal,
-                    'fecha' => $datos['fecha_entrega_real'] ?? now(),
+                    'fecha' => $fechaEntrega,
                     'condicion' => $condicion,
                     'observaciones' => $datos['observaciones'] ?? null,
                 ]

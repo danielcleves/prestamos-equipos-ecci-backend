@@ -8,6 +8,7 @@ use App\Models\Equipo;
 use App\Models\HistorialEstado;
 use App\Models\Prestamo;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -274,5 +275,105 @@ class DevolucionPrestamoTest extends TestCase
         $this->postJson("/api/prestamos/{$prestamo->id}/devolucion", [])
             ->assertStatus(401)
             ->assertJsonPath('message', 'No autenticado.');
+    }
+
+    public function test_rechaza_fecha_devolucion_real_futura(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 15:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->entregado()->create([
+                'fecha_entrega_real' => '2026-10-15 17:00:00', // 12:00 Bogota
+            ]);
+
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                    'condicion_devolucion' => CondicionEquipo::Bueno->value,
+                    'fecha_devolucion_real' => '2026-10-15 18:00:00', // 18:00 > 15:00 actual
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['fecha_devolucion_real']);
+            $this->assertSame(
+                'La fecha de devolución real no puede ser posterior al momento actual.',
+                $response->json('errors.fecha_devolucion_real.0')
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_rechaza_fecha_devolucion_real_anterior_a_entrega(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 17:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->entregado()->create([
+                'fecha_entrega_real' => '2026-10-15 19:00:00', // 19:00 UTC = 14:00 Bogota
+            ]);
+
+            // Intentar registrar devolución a las 13:00 Bogota (18:00 UTC), anterior a la entrega
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                    'condicion_devolucion' => CondicionEquipo::Bueno->value,
+                    'fecha_devolucion_real' => '2026-10-15 13:00:00',
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['fecha_devolucion_real']);
+            $this->assertSame(
+                'La fecha de devolución real no puede ser anterior a la fecha de entrega real.',
+                $response->json('errors.fecha_devolucion_real.0')
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_devolucion_con_fecha_sin_desplazamiento_se_interpreta_en_hora_colombia(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 18:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->entregado()->create([
+                'fecha_entrega_real' => '2026-10-15 17:00:00', // 12:00 Bogota
+            ]);
+
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                    'condicion_devolucion' => CondicionEquipo::Bueno->value,
+                    'fecha_devolucion_real' => '2026-10-15 16:30:00',
+                ]);
+
+            $response->assertStatus(200)
+                ->assertJsonPath('data.fecha_devolucion_real', '2026-10-15T16:30:00-05:00');
+
+            $prestamo->refresh();
+            $this->assertSame('2026-10-15 21:30:00', $prestamo->fecha_devolucion_real->format('Y-m-d H:i:s'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_rechaza_fecha_devolucion_real_con_formato_invalido(): void
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+        $prestamo = Prestamo::factory()->entregado()->create();
+
+        $response = $this->actingAs($encargado, 'sanctum')
+            ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                'condicion_devolucion' => CondicionEquipo::Bueno->value,
+                'fecha_devolucion_real' => '2026-10-15',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['fecha_devolucion_real']);
     }
 }

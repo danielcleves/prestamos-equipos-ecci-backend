@@ -6,7 +6,8 @@ use App\Enums\EstadoPrestamo;
 use App\Models\Equipo;
 use App\Models\Prestamo;
 use App\Models\User;
-use Carbon\Carbon;
+use App\Support\FechaNegocio;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,8 +19,8 @@ class SolicitudPrestamoService
      * @param  array{
      *     equipo_id: int,
      *     motivo: string,
-     *     fecha_inicio: string,
-     *     fecha_devolucion_estimada: string
+     *     fecha_inicio: CarbonInterface|string,
+     *     fecha_devolucion_estimada: CarbonInterface|string
      * }  $data
      *
      * @throws ValidationException
@@ -52,8 +53,13 @@ class SolicitudPrestamoService
                 ]);
             }
 
-            $fechaInicio = Carbon::parse($data['fecha_inicio']);
-            $fechaDevolucionEstimada = Carbon::parse($data['fecha_devolucion_estimada']);
+            $fechaInicio = $data['fecha_inicio'] instanceof CarbonInterface
+                ? $data['fecha_inicio']
+                : FechaNegocio::parsear($data['fecha_inicio']);
+
+            $fechaDevolucionEstimada = $data['fecha_devolucion_estimada'] instanceof CarbonInterface
+                ? $data['fecha_devolucion_estimada']
+                : FechaNegocio::parsear($data['fecha_devolucion_estimada']);
 
             // 2. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
             $hayCruce = Prestamo::where('equipo_id', $equipo->id)

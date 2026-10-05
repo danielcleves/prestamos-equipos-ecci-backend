@@ -16,4 +16,7 @@ return [
 
     // Número máximo de préstamos activos (solicitado, aprobado, entregado) por usuario.
     'max_activos_por_usuario' => (int) env('PRESTAMO_MAX_ACTIVOS_POR_USUARIO', 3),
+
+    // Zona horaria de negocio de la universidad (Colombia, UTC-5).
+    'zona_horaria' => env('PRESTAMO_ZONA_HORARIA', 'America/Bogota'),
 ];

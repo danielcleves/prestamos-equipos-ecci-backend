@@ -42,6 +42,25 @@ Permite a cualquier usuario autenticado solicitar un equipo que se encuentre dis
 > [!NOTE]
 > Los campos `usuario_id`, `estado` y `fecha_solicitud` son asignados exclusivamente por el servidor (`usuario_id = auth()->id()`, `estado = 'solicitado'`, `fecha_solicitud = now()`). Cualquier valor enviado por el cliente es ignorado.
 
+### Formatos de fecha y manejo de zona horaria
+La aplicación y la base de datos operan internamente en **UTC**. La zona horaria de negocio de la universidad es **Colombia (`America/Bogota`, UTC-5)**, configurada en `config('prestamos.zona_horaria')`.
+
+**Formatos de entrada aceptados:**
+1. `"Y-m-d H:i"` y `"Y-m-d H:i:s"` (sin desplazamiento: se interpretan en hora de Colombia).
+2. `"Y-m-d\TH:i"` y `"Y-m-d\TH:i:s"` (sin desplazamiento: se interpretan en hora de Colombia).
+3. ISO 8601 con desplazamiento o Z (`"Y-m-d\TH:i:sP"`, con o sin fracción de segundos).
+
+Cualquier otro formato se rechaza estrictamente con **HTTP 422**:
+- Fechas sin hora (ej. `"2026-10-15"`).
+- Cadenas relativas (ej. `"tomorrow"`).
+- Formatos con barras (ej. `"15/10/2026 08:00"`).
+
+> [!IMPORTANT]
+> **Formato de fechas en respuestas:**
+> - Las seis fechas específicas del préstamo (`fecha_solicitud`, `fecha_inicio`, `fecha_devolucion_estimada`, `fecha_aprobacion`, `fecha_entrega_real`, `fecha_devolucion_real`) se devuelven en formato ISO 8601 con el desplazamiento de Colombia (`-05:00`), por ejemplo `2026-10-10T08:00:00-05:00`.
+> - Los recursos del catálogo y timestamps estándar del framework (como `HistorialEstadoResource`, `created_at`, `updated_at`) devuelven formato ISO 8601 en UTC con sufijo `Z` (ej. `2026-10-05T14:30:00.000000Z`).
+> - Ambos son instantes ISO 8601 válidos y estándar. El cliente / frontend debe parsearlos utilizando tipos y librerías de fecha estándar (ej. `new Date(cadena)` en JavaScript) y **nunca** asumiendo posiciones de caracteres o formatos fijos.
+
 ### Ejemplo de petición
 ```http
 POST /api/prestamos HTTP/1.1
@@ -86,9 +105,9 @@ Content-Type: application/json
     "estado": "solicitado",
     "estado_etiqueta": "Solicitado",
     "motivo": "Práctica de laboratorio para la asignatura de Redes y Conectividad.",
-    "fecha_solicitud": "2026-10-05T14:30:00.000000Z",
-    "fecha_inicio": "2026-10-10T08:00:00.000000Z",
-    "fecha_devolucion_estimada": "2026-10-13T18:00:00.000000Z",
+    "fecha_solicitud": "2026-10-05T09:30:00-05:00",
+    "fecha_inicio": "2026-10-10T08:00:00-05:00",
+    "fecha_devolucion_estimada": "2026-10-13T18:00:00-05:00",
     "fecha_aprobacion": null,
     "fecha_entrega_real": null,
     "fecha_devolucion_real": null,
@@ -139,13 +158,14 @@ Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha si
 ### Reglas de negocio
 - El préstamo debe estar en estado `aprobado` (si no, retorna `422`).
 - El equipo debe encontrarse disponible físicamente.
+- `fecha_entrega_real` no puede ser posterior al momento actual (con tolerancia de 1 minuto) ni anterior a la fecha de aprobación del préstamo (`fecha_aprobacion`).
 - El préstamo pasa a `entregado`, se almacena `fecha_entrega_real`, `entregado_por` (usuario autenticado), `condicion_entrega` y se anexa la observación con prefijo `"Entrega: "`.
 - El equipo cambia de estado a `en_prestamo` (registrado automáticamente en `historial_estados`).
 
 ### Payload de la petición
 | Campo | Tipo | Obligatorio | Valores / Descripción |
 |---|---|---|---|
-| `fecha_entrega_real` | datetime | No | Fecha/hora real de entrega. Por defecto `now()`. |
+| `fecha_entrega_real` | datetime | No | Fecha/hora real de entrega. Por defecto `now()`. Mismos formatos aceptados que en solicitud; sin desplazamiento se interpreta en hora de Colombia. No puede ser futura ni anterior a `fecha_aprobacion`. |
 | `condicion_entrega` | string | No | `bueno`, `con_danos`, `requiere_mantenimiento` (por defecto `bueno`). |
 | `observaciones` | string | No | Observaciones sobre la condición de entrega (máx. 2000 caracteres). |
 
@@ -165,11 +185,18 @@ Exclusivo para roles `admin` y `encargado`. Registra la recepción física del e
 
 ### Reglas de negocio
 - El préstamo debe encontrarse en estado `entregado` (si no, retorna `422`).
-- La fecha real de devolución no puede ser anterior a la fecha real de entrega.
+- `fecha_devolucion_real` no puede ser posterior al momento actual (con tolerancia de 1 minuto) ni anterior a la fecha real de entrega (`fecha_entrega_real`).
 - `condicion_devolucion` es obligatoria (`bueno`, `con_danos`, `requiere_mantenimiento`).
 - Si la condición es distinta de `bueno`, el campo `observaciones` es **obligatorio**.
 - El préstamo pasa a `devuelto`, se almacena `fecha_devolucion_real`, `recibido_por` y se concatena la observación con prefijo `"Devolución: "` en nueva línea sin sobrescribir las observaciones previas de la entrega.
 - Si la condición es `bueno`, el equipo regresa a `disponible`. En cualquier otro caso, pasa a `mantenimiento` (registrado en `historial_estados`).
+
+### Payload de la petición
+| Campo | Tipo | Obligatorio | Valores / Descripción |
+|---|---|---|---|
+| `fecha_devolucion_real` | datetime | No | Fecha/hora real de devolución. Por defecto `now()`. Mismos formatos aceptados; sin desplazamiento se interpreta en hora de Colombia. No puede ser futura ni anterior a `fecha_entrega_real`. |
+| `condicion_devolucion` | string | Sí | `bueno`, `con_danos`, `requiere_mantenimiento`. |
+| `observaciones` | string | Condicional | Obligatorio si la condición es distinta de `bueno` (máx. 2000 caracteres). |
 
 ### Ejemplo de petición
 ```json

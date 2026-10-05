@@ -8,6 +8,7 @@ use App\Models\Equipo;
 use App\Models\HistorialEstado;
 use App\Models\Prestamo;
 use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -162,5 +163,99 @@ class EntregaPrestamoTest extends TestCase
         $this->postJson("/api/prestamos/{$prestamo->id}/entrega", [])
             ->assertStatus(401)
             ->assertJsonPath('message', 'No autenticado.');
+    }
+
+    public function test_rechaza_fecha_entrega_real_futura(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 10:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->aprobado()->create();
+
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/entrega", [
+                    'fecha_entrega_real' => '2026-10-15 12:00:00',
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['fecha_entrega_real']);
+            $this->assertSame(
+                'La fecha de entrega real no puede ser posterior al momento actual.',
+                $response->json('errors.fecha_entrega_real.0')
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_rechaza_fecha_entrega_real_anterior_a_aprobacion(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 12:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->aprobado()->create([
+                'fecha_aprobacion' => '2026-10-15 15:00:00', // 15:00 UTC = 10:00 Bogota
+            ]);
+
+            // Intentar registrar entrega a las 09:00 Bogota (14:00 UTC), anterior a la aprobación
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/entrega", [
+                    'fecha_entrega_real' => '2026-10-15 09:00:00',
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonValidationErrors(['fecha_entrega_real']);
+            $this->assertSame(
+                'La fecha de entrega real no puede ser anterior a la fecha de aprobación del préstamo.',
+                $response->json('errors.fecha_entrega_real.0')
+            );
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_entrega_con_fecha_sin_desplazamiento_se_interpreta_en_hora_colombia(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-15 12:00:00', 'America/Bogota'));
+
+        try {
+            $encargado = User::factory()->create();
+            $encargado->assignRole('encargado');
+            $prestamo = Prestamo::factory()->aprobado()->create([
+                'fecha_aprobacion' => '2026-10-15 12:00:00', // 07:00 Bogota
+            ]);
+
+            $response = $this->actingAs($encargado, 'sanctum')
+                ->postJson("/api/prestamos/{$prestamo->id}/entrega", [
+                    'fecha_entrega_real' => '2026-10-15 09:30:00',
+                ]);
+
+            $response->assertStatus(200)
+                ->assertJsonPath('data.fecha_entrega_real', '2026-10-15T09:30:00-05:00');
+
+            $prestamo->refresh();
+            $this->assertSame('2026-10-15 14:30:00', $prestamo->fecha_entrega_real->format('Y-m-d H:i:s'));
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_rechaza_fecha_entrega_real_con_formato_invalido(): void
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+        $prestamo = Prestamo::factory()->aprobado()->create();
+
+        $response = $this->actingAs($encargado, 'sanctum')
+            ->postJson("/api/prestamos/{$prestamo->id}/entrega", [
+                'fecha_entrega_real' => '2026-10-15',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['fecha_entrega_real']);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\FechaNegocio;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,12 +22,12 @@ class PrestamoResource extends JsonResource
             'estado' => $this->estado->value,
             'estado_etiqueta' => $this->estado->etiqueta(),
             'motivo' => $this->motivo,
-            'fecha_solicitud' => $this->fecha_solicitud?->toIso8601String(),
-            'fecha_inicio' => $this->fecha_inicio?->toIso8601String(),
-            'fecha_devolucion_estimada' => $this->fecha_devolucion_estimada?->toIso8601String(),
-            'fecha_aprobacion' => $this->fecha_aprobacion?->toIso8601String(),
-            'fecha_entrega_real' => $this->fecha_entrega_real?->toIso8601String(),
-            'fecha_devolucion_real' => $this->fecha_devolucion_real?->toIso8601String(),
+            'fecha_solicitud' => FechaNegocio::formatear($this->fecha_solicitud),
+            'fecha_inicio' => FechaNegocio::formatear($this->fecha_inicio),
+            'fecha_devolucion_estimada' => FechaNegocio::formatear($this->fecha_devolucion_estimada),
+            'fecha_aprobacion' => FechaNegocio::formatear($this->fecha_aprobacion),
+            'fecha_entrega_real' => FechaNegocio::formatear($this->fecha_entrega_real),
+            'fecha_devolucion_real' => FechaNegocio::formatear($this->fecha_devolucion_real),
             'condicion_entrega' => $this->condicion_entrega?->value,
             'condicion_entrega_etiqueta' => $this->condicion_entrega?->etiqueta(),
             'condicion_devolucion' => $this->condicion_devolucion?->value,
