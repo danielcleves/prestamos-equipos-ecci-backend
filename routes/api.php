@@ -49,3 +49,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prestamos', [PrestamoController::class, 'store']);
     Route::get('/prestamos/{prestamo}', [PrestamoController::class, 'show']);
 });
+
+// HU-09: Registro de entrega de equipo (personal administrativo: admin y encargado).
+Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+    Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
+});

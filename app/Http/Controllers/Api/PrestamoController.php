@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\EntregaPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
+use App\Services\EntregaPrestamoService;
 use App\Services\SolicitudPrestamoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -74,6 +76,29 @@ class PrestamoController extends Controller
                 'solicitante',
                 'entregadoPor',
                 'recibidoPor',
+            ])),
+        ]);
+    }
+
+    /**
+     * HU-09: Registra la entrega del equipo al solicitante (solo personal autorizado).
+     */
+    public function entrega(
+        EntregaPrestamoRequest $request,
+        Prestamo $prestamo,
+        EntregaPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->registrarEntrega(
+            $prestamo,
+            $request->user(),
+            $request->validated()
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load([
+                'equipo.categoria',
+                'solicitante',
+                'entregadoPor',
             ])),
         ]);
     }
