@@ -86,3 +86,16 @@ parametros.gestionar
   que acordarse de loguearlo a mano.
 
 Ver `docs/api/equipos.md` para el contrato completo de la API.
+
+## Ciclo de préstamos (HU-06, HU-09, HU-11)
+
+Tabla `prestamos`: `usuario_id` (FK a `users`), `equipo_id` (FK a `equipos`), `estado`, `motivo`, `fecha_solicitud`, `fecha_inicio`, `fecha_devolucion_estimada`, `fecha_aprobacion`, `fecha_entrega_real`, `fecha_devolucion_real`, `condicion_entrega`, `condicion_devolucion`, `entregado_por` (FK a `users`), `recibido_por` (FK a `users`), `observaciones`, `timestamps`.
+
+Decisiones adoptadas en esta rama:
+- **Campo `motivo` (cerrado por el PO, Jira KAN-20 / KAN-93):** Obligatorio, texto de hasta 1000 caracteres.
+- **Campos diferidos a refinamiento (fuera de alcance en este sprint):** Descripción del préstamo, número de inventario interno, tiempo en horas y consideración por pérdida o falla.
+- **Parámetros de negocio en `config/prestamos.php` en lugar de `parametros_sistema`:** Los valores `duracion_maxima_dias` (7) y `max_activos_por_usuario` (3) se leen desde variables de entorno (`.env`) con valores por defecto. Marcado como pendiente de confirmar con el PO.
+- **Trazabilidad del préstamo por columnas de fecha y actor:** Sin tabla de historial de préstamos propia. Cada momento queda registrado en sus columnas correspondientes (`fecha_solicitud`, `fecha_aprobacion`, `fecha_entrega_real` + `entregado_por`, `fecha_devolucion_real` + `recibido_por`). Los cambios de estado físico del equipo provocados por la entrega y la devolución quedan auditados automáticamente en `historial_estados` vía `EquipoObserver`. Marcado como pendiente de confirmar con el Líder Técnico.
+- **Observaciones en una sola columna con prefijos:** Se mantiene una sola columna `observaciones` (conforme al ER aprobado). La entrega almacena `"Entrega: <texto>"` y la devolución agrega en una línea nueva `"Devolución: <texto>"` mediante `Prestamo::agregarObservacion()`, para que si más adelante se divide en columnas independientes el cambio quede localizado. Marcado como pendiente de confirmar con el Líder Técnico.
+
+Ver `docs/api/prestamos.md` para el contrato completo de la API.
