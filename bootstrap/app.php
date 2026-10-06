@@ -128,7 +128,7 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        // 500: Cualquier excepcion no controlada, SOLO cuando app.debug es false
+        // 5xx: Cualquier excepcion no controlada o HttpException >= 500, SOLO cuando app.debug es false
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*')) {
                 if ($e instanceof HttpResponseException || $e instanceof ValidationException) {
@@ -140,7 +140,10 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
 
                 if (! config('app.debug')) {
-                    return response()->json(['message' => __('errores.servidor')], 500);
+                    $status = $e instanceof HttpException ? $e->getStatusCode() : 500;
+                    $headers = $e instanceof HttpException ? $e->getHeaders() : [];
+
+                    return response()->json(['message' => __('errores.servidor')], $status, $headers);
                 }
             }
         });

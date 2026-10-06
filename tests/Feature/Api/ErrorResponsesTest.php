@@ -173,4 +173,18 @@ class ErrorResponsesTest extends TestCase
         $response->assertStatus(409)
             ->assertExactJson(['message' => 'La solicitud no pudo procesarse.']);
     }
+
+    public function test_error_http_503_con_debug_desactivado_conserva_codigo_y_devuelve_mensaje_estandar(): void
+    {
+        config(['app.debug' => false]);
+
+        Route::get('/api/test-error-503', function () {
+            abort(503);
+        });
+
+        $response = $this->getJson('/api/test-error-503');
+
+        $response->assertStatus(503)
+            ->assertExactJson(['message' => 'Error interno del servidor.']);
+    }
 }
