@@ -108,10 +108,18 @@ El repositorio cuenta con dos modalidades de pruebas automatizadas:
 ### Inicialización de la base de pruebas (`prestamos_test`)
 
 - Para contenedores inicializados desde cero (sin volumen previo), `docker/mysql/init-test-db.sh` se monta en `/docker-entrypoint-initdb.d` y crea la base de datos automáticamente al arrancar.
-- Si ya tienes el volumen de MySQL creado previamente, ejecuta una sola vez el siguiente comando para aprovisionar `prestamos_test` sin reiniciar tus volúmenes (la contraseña de root se toma directamente de las variables del contenedor):
+- Si ya tienes el volumen de MySQL creado previamente, ejecuta una sola vez el comando correspondiente a tu terminal para aprovisionar `prestamos_test` sin reiniciar tus volúmenes (la contraseña de root se toma directamente de las variables del contenedor, sin exponerla):
+
+**En Bash / Zsh / Git Bash (Linux, macOS o Windows Git Bash):**
 
 ```sh
 docker compose exec prestamos_db sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS prestamos_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON prestamos_test.* TO \"$MYSQL_USER\"@\"%\"; FLUSH PRIVILEGES;"'
+```
+
+**En PowerShell (Windows PowerShell 5.1 / PowerShell 7+):**
+
+```powershell
+docker compose exec prestamos_db sh -c 'mysql -u root -p\"$MYSQL_ROOT_PASSWORD\" -e \"CREATE DATABASE IF NOT EXISTS prestamos_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON prestamos_test.* TO ''$MYSQL_USER''@''%''; FLUSH PRIVILEGES;\"'
 ```
 
 ## 🔌 Endpoints disponibles
