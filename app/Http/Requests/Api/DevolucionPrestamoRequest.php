@@ -38,19 +38,16 @@ class DevolucionPrestamoRequest extends FormRequest
                     }
 
                     $fechaDevolucion = FechaNegocio::parsear($value);
-                    if ($fechaDevolucion->isAfter(now()->addMinute())) {
-                        $fail('La fecha de devolución real no puede ser posterior al momento actual.');
-
-                        return;
-                    }
-
                     $prestamo = $this->route('prestamo');
                     if (! $prestamo instanceof Prestamo && $prestamo) {
                         $prestamo = Prestamo::find($prestamo);
                     }
 
-                    if ($prestamo instanceof Prestamo && $prestamo->fecha_entrega_real && $fechaDevolucion->isBefore($prestamo->fecha_entrega_real)) {
-                        $fail('La fecha de devolución real no puede ser anterior a la fecha de entrega real.');
+                    if ($prestamo instanceof Prestamo) {
+                        $error = $prestamo->errorFechaDevolucionReal($fechaDevolucion);
+                        if ($error !== null) {
+                            $fail($error);
+                        }
                     }
                 },
             ],

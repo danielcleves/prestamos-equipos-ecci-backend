@@ -58,15 +58,9 @@ class EntregaPrestamoService
                     : FechaNegocio::parsear($datos['fecha_entrega_real']))
                 : now();
 
-            if ($fechaEntrega->isAfter(now()->addMinute())) {
+            if ($error = $prestamo->errorFechaEntregaReal($fechaEntrega)) {
                 throw ValidationException::withMessages([
-                    'fecha_entrega_real' => 'La fecha de entrega real no puede ser posterior al momento actual.',
-                ]);
-            }
-
-            if ($prestamo->fecha_aprobacion && $fechaEntrega->isBefore($prestamo->fecha_aprobacion)) {
-                throw ValidationException::withMessages([
-                    'fecha_entrega_real' => 'La fecha de entrega real no puede ser anterior a la fecha de aprobación del préstamo.',
+                    'fecha_entrega_real' => $error,
                 ]);
             }
 

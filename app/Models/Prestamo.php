@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CondicionEquipo;
 use App\Enums\EstadoPrestamo;
+use Carbon\CarbonInterface;
 use Database\Factories\PrestamoFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -80,6 +81,40 @@ class Prestamo extends Model
     public function recibidoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recibido_por');
+    }
+
+    /**
+     * Valida la coherencia temporal de la fecha de entrega real.
+     * Retorna el mensaje de error en español o null si es válida.
+     */
+    public function errorFechaEntregaReal(CarbonInterface $fecha): ?string
+    {
+        if ($fecha->isAfter(now()->addMinute())) {
+            return 'La fecha de entrega real no puede ser posterior al momento actual.';
+        }
+
+        if ($this->fecha_aprobacion && $fecha->isBefore($this->fecha_aprobacion)) {
+            return 'La fecha de entrega real no puede ser anterior a la fecha de aprobación del préstamo.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Valida la coherencia temporal de la fecha de devolución real.
+     * Retorna el mensaje de error en español o null si es válida.
+     */
+    public function errorFechaDevolucionReal(CarbonInterface $fecha): ?string
+    {
+        if ($fecha->isAfter(now()->addMinute())) {
+            return 'La fecha de devolución real no puede ser posterior al momento actual.';
+        }
+
+        if ($this->fecha_entrega_real && $fecha->isBefore($this->fecha_entrega_real)) {
+            return 'La fecha de devolución real no puede ser anterior a la fecha de entrega real.';
+        }
+
+        return null;
     }
 
     /**

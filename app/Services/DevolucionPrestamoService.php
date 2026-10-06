@@ -62,16 +62,9 @@ class DevolucionPrestamoService
                     : FechaNegocio::parsear($datos['fecha_devolucion_real']))
                 : now();
 
-            if ($fechaDevolucion->isAfter(now()->addMinute())) {
+            if ($error = $prestamo->errorFechaDevolucionReal($fechaDevolucion)) {
                 throw ValidationException::withMessages([
-                    'fecha_devolucion_real' => 'La fecha de devolución real no puede ser posterior al momento actual.',
-                ]);
-            }
-
-            // Validación de coherencia temporal: la devolución no puede preceder a la entrega
-            if ($prestamo->fecha_entrega_real && $fechaDevolucion->lt($prestamo->fecha_entrega_real)) {
-                throw ValidationException::withMessages([
-                    'fecha_devolucion_real' => 'La fecha de devolución real no puede ser anterior a la fecha de entrega real.',
+                    'fecha_devolucion_real' => $error,
                 ]);
             }
 
