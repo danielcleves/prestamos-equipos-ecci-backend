@@ -156,8 +156,9 @@ class DevolucionPrestamoTest extends TestCase
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');
 
-        // Préstamo en estado aprobado (aún no entregado)
-        $prestamoAprobado = Prestamo::factory()->aprobado()->create();
+        // Préstamo en estado aprobado (aún no entregado), con equipo en préstamo para validar la transición de estado
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
+        $prestamoAprobado = Prestamo::factory()->aprobado()->create(['equipo_id' => $equipo->id]);
 
         $response = $this->actingAs($encargado, 'sanctum')
             ->postJson("/api/prestamos/{$prestamoAprobado->id}/devolucion", [
@@ -341,7 +342,9 @@ class DevolucionPrestamoTest extends TestCase
         try {
             $encargado = User::factory()->create();
             $encargado->assignRole('encargado');
+            $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
             $prestamo = Prestamo::factory()->entregado()->create([
+                'equipo_id' => $equipo->id,
                 'fecha_entrega_real' => '2026-10-15 17:00:00', // 12:00 Bogota
             ]);
 
@@ -375,5 +378,74 @@ class DevolucionPrestamoTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['fecha_devolucion_real']);
+    }
+
+    public function test_rechaza_devolucion_si_equipo_esta_en_estado_disponible(): void
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+        $prestamo = Prestamo::factory()->entregado()->create(['equipo_id' => $equipo->id]);
+        $historialPrevio = HistorialEstado::where('equipo_id', $equipo->id)->count();
+
+        $response = $this->actingAs($encargado, 'sanctum')
+            ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                'condicion_devolucion' => CondicionEquipo::Bueno->value,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['equipo']);
+
+        $this->assertStringContainsString('disponible', $response->json('errors.equipo.0'));
+        $this->assertSame(EstadoPrestamo::Entregado, $prestamo->fresh()->estado);
+        $this->assertSame(Equipo::ESTADO_DISPONIBLE, $equipo->fresh()->estado);
+        $this->assertSame($historialPrevio, HistorialEstado::where('equipo_id', $equipo->id)->count());
+    }
+
+    public function test_rechaza_devolucion_si_equipo_esta_en_mantenimiento(): void
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_MANTENIMIENTO]);
+        $prestamo = Prestamo::factory()->entregado()->create(['equipo_id' => $equipo->id]);
+        $historialPrevio = HistorialEstado::where('equipo_id', $equipo->id)->count();
+
+        $response = $this->actingAs($encargado, 'sanctum')
+            ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                'condicion_devolucion' => CondicionEquipo::Bueno->value,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['equipo']);
+
+        $this->assertStringContainsString('mantenimiento', $response->json('errors.equipo.0'));
+        $this->assertSame(EstadoPrestamo::Entregado, $prestamo->fresh()->estado);
+        $this->assertSame(Equipo::ESTADO_MANTENIMIENTO, $equipo->fresh()->estado);
+        $this->assertSame($historialPrevio, HistorialEstado::where('equipo_id', $equipo->id)->count());
+    }
+
+    public function test_rechaza_devolucion_si_equipo_esta_dado_de_baja(): void
+    {
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
+        $prestamo = Prestamo::factory()->entregado()->create(['equipo_id' => $equipo->id]);
+        $historialPrevio = HistorialEstado::where('equipo_id', $equipo->id)->count();
+
+        $response = $this->actingAs($encargado, 'sanctum')
+            ->postJson("/api/prestamos/{$prestamo->id}/devolucion", [
+                'condicion_devolucion' => CondicionEquipo::Bueno->value,
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['equipo']);
+
+        $this->assertStringContainsString('dado de baja', $response->json('errors.equipo.0'));
+        $this->assertSame(EstadoPrestamo::Entregado, $prestamo->fresh()->estado);
+        $this->assertSame(Equipo::ESTADO_DADO_DE_BAJA, $equipo->fresh()->estado);
+        $this->assertSame($historialPrevio, HistorialEstado::where('equipo_id', $equipo->id)->count());
     }
 }

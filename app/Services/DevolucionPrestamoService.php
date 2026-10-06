@@ -39,6 +39,19 @@ class DevolucionPrestamoService
             // Nota: lockForUpdate() no bloquea en SQLite (las carreras de concurrencia solo se reproducen en MySQL 8.0).
             $equipo = Equipo::whereKey($prestamo->equipo_id)->lockForUpdate()->firstOrFail();
 
+            if ($equipo->estado !== Equipo::ESTADO_EN_PRESTAMO) {
+                $estadoTexto = match ($equipo->estado) {
+                    Equipo::ESTADO_DISPONIBLE => 'disponible',
+                    Equipo::ESTADO_MANTENIMIENTO => 'en mantenimiento',
+                    Equipo::ESTADO_DADO_DE_BAJA => 'dado de baja',
+                    default => $equipo->estado,
+                };
+
+                throw ValidationException::withMessages([
+                    'equipo' => "El equipo no se encuentra en préstamo (estado actual: {$estadoTexto}).",
+                ]);
+            }
+
             $condicion = $datos['condicion_devolucion'] instanceof CondicionEquipo
                 ? $datos['condicion_devolucion']
                 : CondicionEquipo::from($datos['condicion_devolucion']);
