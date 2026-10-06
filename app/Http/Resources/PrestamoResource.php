@@ -54,8 +54,8 @@ class PrestamoResource extends JsonResource
             ]),
             'observaciones_entrega' => $this->when($esPersonal, $this->observaciones_entrega),
             'observaciones_devolucion' => $this->when($esPersonal, $this->observaciones_devolucion),
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'created_at' => FechaNegocio::formatear($this->created_at),
+            'updated_at' => FechaNegocio::formatear($this->updated_at),
         ];
     }
 }

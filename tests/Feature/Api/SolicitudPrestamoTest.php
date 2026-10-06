@@ -747,4 +747,22 @@ class SolicitudPrestamoTest extends TestCase
         $this->assertNotEquals(429, $resOtro->status());
         $this->assertEquals(422, $resOtro->status());
     }
+
+    public function test_created_at_y_updated_at_se_formatean_en_la_zona_de_negocio(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+
+        $prestamo = Prestamo::factory()->create([
+            'usuario_id' => $usuario->id,
+            'created_at' => Carbon::parse('2026-10-15 13:00:00', 'UTC'),
+            'updated_at' => Carbon::parse('2026-10-15 14:00:00', 'UTC'),
+        ]);
+
+        $response = $this->actingAs($usuario, 'sanctum')->getJson("/api/prestamos/{$prestamo->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.created_at', '2026-10-15T08:00:00-05:00')
+            ->assertJsonPath('data.updated_at', '2026-10-15T09:00:00-05:00');
+    }
 }

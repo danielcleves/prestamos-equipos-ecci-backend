@@ -57,8 +57,8 @@ Cualquier otro formato se rechaza estrictamente con **HTTP 422**:
 
 > [!IMPORTANT]
 > **Formato de fechas en respuestas:**
-> - Las seis fechas específicas del préstamo (`fecha_solicitud`, `fecha_inicio`, `fecha_devolucion_estimada`, `fecha_aprobacion`, `fecha_entrega_real`, `fecha_devolucion_real`) se devuelven en formato ISO 8601 con el desplazamiento de Colombia (`-05:00`), por ejemplo `2026-10-10T08:00:00-05:00`.
-> - Los recursos del catálogo y timestamps estándar del framework (como `HistorialEstadoResource`, `created_at`, `updated_at`) devuelven formato ISO 8601 en UTC con sufijo `Z` (ej. `2026-10-05T14:30:00.000000Z`).
+> - Todas las fechas y timestamps del recurso del préstamo (`fecha_solicitud`, `fecha_inicio`, `fecha_devolucion_estimada`, `fecha_aprobacion`, `fecha_entrega_real`, `fecha_devolucion_real`, `created_at`, `updated_at`) se devuelven en formato ISO 8601 con el desplazamiento de Colombia (`-05:00`), por ejemplo `2026-10-10T08:00:00-05:00`.
+> - Los recursos del catálogo y timestamps estándar de otras entidades (como `HistorialEstadoResource`) devuelven formato ISO 8601 en UTC con sufijo `Z` (ej. `2026-10-05T14:30:00.000000Z`).
 > - Ambos son instantes ISO 8601 válidos y estándar. El cliente / frontend debe parsearlos utilizando tipos y librerías de fecha estándar (ej. `new Date(cadena)` en JavaScript) y **nunca** asumiendo posiciones de caracteres o formatos fijos.
 
 ### Ejemplo de petición
@@ -116,8 +116,8 @@ Content-Type: application/json
     "usuario_entrega": null,
     "recibido_por": null,
     "usuario_recepcion": null,
-    "created_at": "2026-10-05T14:30:00.000000Z",
-    "updated_at": "2026-10-05T14:30:00.000000Z"
+    "created_at": "2026-10-05T09:30:00-05:00",
+    "updated_at": "2026-10-05T09:30:00-05:00"
   }
 }
 ```
@@ -190,8 +190,8 @@ Consulta el detalle puntual de un préstamo.
       "id": 5,
       "name": "Prueba Encargado"
     },
-    "created_at": "2026-10-05T19:58:38+00:00",
-    "updated_at": "2026-10-05T19:59:40+00:00"
+    "created_at": "2026-10-05T14:58:38-05:00",
+    "updated_at": "2026-10-05T14:59:40-05:00"
   }
 }
 ```
@@ -247,8 +247,8 @@ Consulta el detalle puntual de un préstamo.
     },
     "observaciones_entrega": "Se entrega con cargador",
     "observaciones_devolucion": "Golpe en la esquina",
-    "created_at": "2026-10-05T19:58:38+00:00",
-    "updated_at": "2026-10-05T19:59:40+00:00"
+    "created_at": "2026-10-05T14:58:38-05:00",
+    "updated_at": "2026-10-05T14:59:40-05:00"
   }
 }
 ```
