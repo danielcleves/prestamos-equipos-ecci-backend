@@ -270,6 +270,40 @@ class SolicitudPrestamoTest extends TestCase
         );
     }
 
+    public function test_valida_limite_de_activos_con_datos_frescos_de_la_base_de_datos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+
+        // La instancia $usuario en memoria se creó antes.
+        // Simulamos que tras cargar la instancia se insertaron préstamos activos directamente en la base de datos:
+        Prestamo::factory()->count(3)->create([
+            'usuario_id' => $usuario->id,
+            'estado' => EstadoPrestamo::Solicitado,
+        ]);
+
+        $service = app(\App\Services\SolicitudPrestamoService::class);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+
+        try {
+            $service->solicitar($usuario, [
+                'equipo_id' => $equipo->id,
+                'motivo' => 'Intento concurrente de solicitud',
+                'fecha_inicio' => now()->addDay(),
+                'fecha_devolucion_estimada' => now()->addDays(2),
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('usuario_id', $e->errors());
+            $this->assertSame(
+                'Has alcanzado el límite máximo de 3 préstamos activos.',
+                $e->errors()['usuario_id'][0]
+            );
+            throw $e;
+        }
+    }
+
     public function test_el_cliente_no_puede_fijar_fecha_solicitud_usuario_id_ni_estado(): void
     {
         $usuarioAutenticado = User::factory()->create();

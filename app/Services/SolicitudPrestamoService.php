@@ -28,13 +28,33 @@ class SolicitudPrestamoService
     public function solicitar(User $usuario, array $data): Prestamo
     {
         return DB::transaction(function () use ($usuario, $data) {
-            // Se bloquea el equipo con lockForUpdate() dentro de la transacción y ANTES de las
-            // validaciones de disponibilidad, cruce de fechas y límite de activos por usuario.
-            // Esto asegura consistencia en entornos concurrentes como MySQL 8.0.
-            // Nota: lockForUpdate() no bloquea en SQLite (los tests automatizados no cubren la carrera de concurrencia).
+            // Orden de bloqueo único en todo el módulo para prevenir interbloqueos: usuario -> equipo -> préstamo.
+            // 1. Primero se bloquea al usuario solicitante con lockForUpdate() para asegurar que peticiones
+            // concurrentes del mismo usuario no superen max_activos_por_usuario.
+            // Nota: lockForUpdate() no bloquea en SQLite (esta carrera de concurrencia solo se reproduce en MySQL 8.0).
+            $solicitante = User::whereKey($usuario->getKey())->lockForUpdate()->firstOrFail();
+
+            // 2. A continuación se bloquea el equipo con lockForUpdate() antes de validar su disponibilidad y cruce de fechas.
             $equipo = Equipo::whereKey($data['equipo_id'])->lockForUpdate()->firstOrFail();
 
-            // 1. El equipo debe cumplir Equipo::isDisponible() (única fuente de verdad de la HU-05)
+            // 3. El usuario no debe superar config('prestamos.max_activos_por_usuario') (cuenta solicitado, aprobado, entregado)
+            // Evaluado tras bloquear al solicitante para garantizar datos frescos y consistencia concurrente.
+            $maxActivos = (int) config('prestamos.max_activos_por_usuario', 3);
+            $activosUsuario = Prestamo::where('usuario_id', $solicitante->id)
+                ->whereIn('estado', [
+                    EstadoPrestamo::Solicitado->value,
+                    EstadoPrestamo::Aprobado->value,
+                    EstadoPrestamo::Entregado->value,
+                ])
+                ->count();
+
+            if ($activosUsuario >= $maxActivos) {
+                throw ValidationException::withMessages([
+                    'usuario_id' => "Has alcanzado el límite máximo de {$maxActivos} préstamos activos.",
+                ]);
+            }
+
+            // 4. El equipo debe cumplir Equipo::isDisponible() (única fuente de verdad de la HU-05)
             if (! $equipo->isDisponible()) {
                 if ($equipo->isDadoDeBaja()) {
                     throw ValidationException::withMessages([
@@ -61,7 +81,7 @@ class SolicitudPrestamoService
                 ? $data['fecha_devolucion_estimada']
                 : FechaNegocio::parsear($data['fecha_devolucion_estimada']);
 
-            // 2. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
+            // 5. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
             $hayCruce = Prestamo::where('equipo_id', $equipo->id)
                 ->whereIn('estado', [
                     EstadoPrestamo::Solicitado->value,
@@ -78,26 +98,10 @@ class SolicitudPrestamoService
                 ]);
             }
 
-            // 3. El usuario no debe superar config('prestamos.max_activos_por_usuario') (cuenta solicitado, aprobado, entregado)
-            $maxActivos = (int) config('prestamos.max_activos_por_usuario', 3);
-            $activosUsuario = Prestamo::where('usuario_id', $usuario->id)
-                ->whereIn('estado', [
-                    EstadoPrestamo::Solicitado->value,
-                    EstadoPrestamo::Aprobado->value,
-                    EstadoPrestamo::Entregado->value,
-                ])
-                ->count();
-
-            if ($activosUsuario >= $maxActivos) {
-                throw ValidationException::withMessages([
-                    'usuario_id' => "Has alcanzado el límite máximo de {$maxActivos} préstamos activos.",
-                ]);
-            }
-
-            // 4. Se crea el préstamo en estado solicitado con fecha_solicitud = now().
+            // 6. Se crea el préstamo en estado solicitado con fecha_solicitud = now().
             // La solicitud NO cambia el estado del equipo.
             return Prestamo::create([
-                'usuario_id' => $usuario->id,
+                'usuario_id' => $solicitante->id,
                 'equipo_id' => $equipo->id,
                 'estado' => EstadoPrestamo::Solicitado,
                 'motivo' => $data['motivo'],

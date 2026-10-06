@@ -34,8 +34,9 @@ class DevolucionPrestamoService
     public function registrarDevolucion(Prestamo $prestamo, User $personal, array $datos): Prestamo
     {
         return DB::transaction(function () use ($prestamo, $personal, $datos) {
-            // Orden de bloqueo para prevenir interbloqueos:
-            // 1. Primero se bloquea el equipo con lockForUpdate()
+            // Orden de bloqueo único en todo el módulo para prevenir interbloqueos: usuario -> equipo -> préstamo.
+            // 1. Primero se bloquea el equipo con lockForUpdate() (el solicitante no participa directamente en la transacción).
+            // Nota: lockForUpdate() no bloquea en SQLite (las carreras de concurrencia solo se reproducen en MySQL 8.0).
             $equipo = Equipo::whereKey($prestamo->equipo_id)->lockForUpdate()->firstOrFail();
 
             $condicion = $datos['condicion_devolucion'] instanceof CondicionEquipo

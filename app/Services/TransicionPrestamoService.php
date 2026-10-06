@@ -30,9 +30,9 @@ class TransicionPrestamoService
     public function transicionar(Prestamo $prestamo, EstadoPrestamo $destino, array $datos = []): Prestamo
     {
         return DB::transaction(function () use ($prestamo, $destino, $datos) {
-            // Se recarga el préstamo con lockForUpdate() dentro de la transacción para obtener
-            // datos frescos de la BD y evitar que dos peticiones simultáneas registren la misma entrega o devolución.
-            // Nota: lockForUpdate() no bloquea en SQLite (los tests automatizados no cubren la carrera de concurrencia).
+            // Orden de bloqueo único en todo el módulo para prevenir interbloqueos: usuario -> equipo -> préstamo.
+            // Se recarga el préstamo con lockForUpdate() en último lugar (tras el bloqueo previo de equipo por el orquestador).
+            // Nota: lockForUpdate() no bloquea en SQLite (las carreras de concurrencia solo se reproducen en MySQL 8.0).
             $prestamoFresco = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
 
             $origen = $prestamoFresco->estado;
