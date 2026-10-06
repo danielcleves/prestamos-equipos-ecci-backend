@@ -56,6 +56,7 @@ Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
 // HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/prestamos', [PrestamoController::class, 'index']);
-    Route::post('/prestamos', [PrestamoController::class, 'store']);
+    Route::post('/prestamos', [PrestamoController::class, 'store'])
+        ->middleware('throttle:10,1');
     Route::get('/prestamos/{prestamo}', [PrestamoController::class, 'show']);
 });

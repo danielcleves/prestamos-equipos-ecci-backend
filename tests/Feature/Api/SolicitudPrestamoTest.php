@@ -11,6 +11,7 @@ use App\Services\SolicitudPrestamoService;
 use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -22,6 +23,7 @@ class SolicitudPrestamoTest extends TestCase
     {
         parent::setUp();
         $this->seed(RoleSeeder::class);
+        Cache::flush();
     }
 
     public function test_usuario_autenticado_puede_solicitar_un_equipo_disponible(): void
@@ -718,5 +720,31 @@ class SolicitudPrestamoTest extends TestCase
         $resEncargado->assertStatus(200)
             ->assertJsonPath('data.observaciones_entrega', 'Entrega sin novedades')
             ->assertJsonPath('data.observaciones_devolucion', 'Devolución impecable');
+    }
+
+    public function test_exceder_limite_de_solicitudes_por_minuto_devuelve_429(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+
+        // Consumir los 10 intentos permitidos por minuto para este usuario
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', []);
+        }
+
+        // El intento 11 debe ser bloqueado con 429
+        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', []);
+
+        $response->assertStatus(429)
+            ->assertExactJson(['message' => 'Demasiadas solicitudes. Intenta de nuevo más tarde.'])
+            ->assertHeader('Retry-After');
+
+        // Otro usuario autenticado no debe ser bloqueado por el límite del primero
+        $otroUsuario = User::factory()->create();
+        $otroUsuario->assignRole('usuario');
+
+        $resOtro = $this->actingAs($otroUsuario, 'sanctum')->postJson('/api/prestamos', []);
+        $this->assertNotEquals(429, $resOtro->status());
+        $this->assertEquals(422, $resOtro->status());
     }
 }
