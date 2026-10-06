@@ -383,14 +383,28 @@ class SolicitudPrestamoTest extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('data.id', $prestamo->id);
 
-        // Un usuario ajeno recibe 403
-        $this->actingAs($usuarioExtrano, 'sanctum')
+        // Un usuario ajeno recibe 404 con el mismo cuerpo que un ID inexistente
+        $resInexistente = $this->actingAs($usuarioExtrano, 'sanctum')
+            ->getJson('/api/prestamos/99999999')
+            ->assertStatus(404);
+
+        $resAjeno = $this->actingAs($usuarioExtrano, 'sanctum')
             ->getJson("/api/prestamos/{$prestamo->id}")
-            ->assertStatus(403)
-            ->assertJsonPath('message', 'No tienes permiso para realizar esta acción.');
+            ->assertStatus(404);
+
+        $this->assertSame($resInexistente->json(), $resAjeno->json());
+        $this->assertSame('Recurso no encontrado.', $resAjeno->json('message'));
 
         // El admin puede ver el préstamo de cualquier usuario
         $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/prestamos/{$prestamo->id}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.id', $prestamo->id);
+
+        // El encargado puede ver el préstamo de cualquier usuario
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+        $this->actingAs($encargado, 'sanctum')
             ->getJson("/api/prestamos/{$prestamo->id}")
             ->assertStatus(200)
             ->assertJsonPath('data.id', $prestamo->id);

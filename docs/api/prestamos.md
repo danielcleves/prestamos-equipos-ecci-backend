@@ -139,7 +139,8 @@ Lista paginada de préstamos:
 ## 4. Detalle de Préstamo (`GET /api/prestamos/{prestamo}`)
 
 Consulta el detalle puntual de un préstamo.
-- **Acceso:** El solicitante dueño del préstamo, administradores y encargados (`PrestamoPolicy`).
+- **Acceso:** El solicitante dueño del préstamo, administradores y encargados.
+- **Visibilidad y confidencialidad:** Si un usuario común intenta consultar un préstamo que no le pertenece, la API responde `404 Not Found` (`{"message": "Recurso no encontrado."}`) con el mismo cuerpo que si el ID no existiera, evitando revelar la existencia del registro (mismo criterio de `EquipoController`).
 - **Privacidad de datos de usuarios anidados:**
   - `usuario_entrega` y `usuario_recepcion`: Siempre devuelven únicamente `{ "id": int, "name": string }` (mismo formato mínimo de `HistorialEstadoResource`).
   - `solicitante`: Para rol `usuario` devuelve solo `{ "id": int, "name": string }`. Para roles administrativos (`admin`, `encargado`) incluye además `{ "email": string, "is_active": bool, "roles": [...] }`.

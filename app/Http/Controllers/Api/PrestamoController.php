@@ -9,13 +9,14 @@ use App\Http\Requests\Api\EntregaPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
+use App\Models\User;
 use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
 use App\Services\SolicitudPrestamoService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class PrestamoController extends Controller
 {
@@ -104,7 +105,7 @@ class PrestamoController extends Controller
      */
     public function show(Request $request, Prestamo $prestamo): JsonResponse
     {
-        Gate::authorize('view', $prestamo);
+        $this->asegurarVisibilidad($request->user(), $prestamo);
 
         return response()->json([
             'data' => new PrestamoResource($prestamo->load([
@@ -161,5 +162,18 @@ class PrestamoController extends Controller
                 'recibidoPor',
             ])),
         ]);
+    }
+
+    /**
+     * Asegura la visibilidad del préstamo según el rol:
+     * El solicitante dueño puede ver su propio préstamo; el personal administrativo puede ver cualquiera.
+     * Si un usuario no autorizado consulta un préstamo ajeno, se lanza ModelNotFoundException para responder
+     * 404 (mismo criterio de visibilidad de EquipoController), evitando revelar la existencia del registro.
+     */
+    private function asegurarVisibilidad(?User $user, Prestamo $prestamo): void
+    {
+        if ($user === null || (! $user->esPersonalAdministrativo() && $prestamo->usuario_id !== $user->id)) {
+            throw (new ModelNotFoundException)->setModel(Prestamo::class, [$prestamo->id]);
+        }
     }
 }
