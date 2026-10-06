@@ -13,12 +13,12 @@ class PrestamoResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $esPersonal = $request->user()?->esPersonalAdministrativo() ?? false;
+
         return [
             'id' => $this->id,
             'usuario_id' => $this->usuario_id,
-            'solicitante' => $this->whenLoaded('solicitante', function () use ($request) {
-                $esPersonal = $request->user()?->esPersonalAdministrativo() ?? false;
-
+            'solicitante' => $this->whenLoaded('solicitante', function () use ($esPersonal) {
                 return [
                     'id' => $this->solicitante->id,
                     'name' => $this->solicitante->name,
@@ -52,7 +52,8 @@ class PrestamoResource extends JsonResource
                 'id' => $this->recibidoPor->id,
                 'name' => $this->recibidoPor->name,
             ]),
-            'observaciones' => $this->observaciones,
+            'observaciones_entrega' => $this->when($esPersonal, $this->observaciones_entrega),
+            'observaciones_devolucion' => $this->when($esPersonal, $this->observaciones_devolucion),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

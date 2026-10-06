@@ -85,8 +85,8 @@ class TransicionPrestamoService
         $prestamo->entregado_por = $datos['actor']->id;
         $prestamo->condicion_entrega = $datos['condicion'] ?? CondicionEquipo::Bueno;
 
-        if (! empty($datos['observaciones'])) {
-            $prestamo->agregarObservacion('Entrega', $datos['observaciones']);
+        if (array_key_exists('observaciones', $datos)) {
+            $prestamo->observaciones_entrega = $datos['observaciones'];
         }
     }
 
@@ -104,8 +104,8 @@ class TransicionPrestamoService
         $prestamo->recibido_por = $datos['actor']->id;
         $prestamo->condicion_devolucion = $datos['condicion'];
 
-        if (! empty($datos['observaciones'])) {
-            $prestamo->agregarObservacion('Devolución', $datos['observaciones']);
+        if (array_key_exists('observaciones', $datos)) {
+            $prestamo->observaciones_devolucion = $datos['observaciones'];
         }
     }
 }

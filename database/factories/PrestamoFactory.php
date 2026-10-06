@@ -41,7 +41,8 @@ class PrestamoFactory extends Factory
             'condicion_devolucion' => null,
             'entregado_por' => null,
             'recibido_por' => null,
-            'observaciones' => null,
+            'observaciones_entrega' => null,
+            'observaciones_devolucion' => null,
         ];
     }
 
@@ -68,7 +69,8 @@ class PrestamoFactory extends Factory
             'fecha_entrega_real' => now(),
             'condicion_entrega' => CondicionEquipo::Bueno,
             'entregado_por' => User::factory(),
-            'observaciones' => 'Entrega: En buen estado',
+            'observaciones_entrega' => 'En buen estado',
+            'observaciones_devolucion' => null,
         ]);
     }
 
@@ -83,7 +85,8 @@ class PrestamoFactory extends Factory
             'condicion_devolucion' => CondicionEquipo::Bueno,
             'entregado_por' => User::factory(),
             'recibido_por' => User::factory(),
-            'observaciones' => "Entrega: En buen estado\nDevolución: Devuelto a tiempo",
+            'observaciones_entrega' => 'En buen estado',
+            'observaciones_devolucion' => 'Devuelto a tiempo',
         ]);
     }
 }

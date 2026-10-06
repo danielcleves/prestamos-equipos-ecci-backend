@@ -26,7 +26,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'condicion_devolucion',
     'entregado_por',
     'recibido_por',
-    'observaciones',
+    'observaciones_entrega',
+    'observaciones_devolucion',
 ])]
 class Prestamo extends Model
 {
@@ -115,24 +116,5 @@ class Prestamo extends Model
         }
 
         return null;
-    }
-
-    /**
-     * Agrega una observación con el prefijo del momento sin sobrescribir la existente.
-     * Encapsulado para que un cambio a múltiples columnas quede localizado en este punto.
-     */
-    public function agregarObservacion(string $momento, ?string $texto): void
-    {
-        $textoLimpio = trim($texto ?? '');
-        if ($textoLimpio === '') {
-            return;
-        }
-
-        $etiqueta = ucfirst(trim($momento));
-        $nuevaLinea = "{$etiqueta}: {$textoLimpio}";
-
-        $this->observaciones = ($this->observaciones !== null && trim($this->observaciones) !== '')
-            ? $this->observaciones."\n".$nuevaLinea
-            : $nuevaLinea;
     }
 }

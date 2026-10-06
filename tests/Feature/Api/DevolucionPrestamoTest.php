@@ -31,7 +31,7 @@ class DevolucionPrestamoTest extends TestCase
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
         $prestamo = Prestamo::factory()->entregado()->create([
             'equipo_id' => $equipo->id,
-            'observaciones' => 'Entrega: Entregado con cargador original',
+            'observaciones_entrega' => 'Entregado con cargador original',
             'fecha_entrega_real' => now()->subDays(2),
         ]);
 
@@ -49,20 +49,17 @@ class DevolucionPrestamoTest extends TestCase
             ->assertJsonPath('data.estado_etiqueta', 'Devuelto')
             ->assertJsonPath('data.recibido_por', $encargado->id)
             ->assertJsonPath('data.condicion_devolucion', CondicionEquipo::Bueno->value)
-            ->assertJsonPath(
-                'data.observaciones',
-                "Entrega: Entregado con cargador original\nDevolución: Devuelto a tiempo y en óptimas condiciones"
-            );
+            ->assertJsonPath('data.observaciones_entrega', 'Entregado con cargador original')
+            ->assertJsonPath('data.observaciones_devolucion', 'Devuelto a tiempo y en óptimas condiciones')
+            ->assertJsonMissingPath('data.observaciones');
 
         // Préstamo en base de datos
         $prestamoActualizado = Prestamo::findOrFail($prestamo->id);
         $this->assertSame(EstadoPrestamo::Devuelto, $prestamoActualizado->estado);
         $this->assertSame($encargado->id, $prestamoActualizado->recibido_por);
         $this->assertSame(CondicionEquipo::Bueno, $prestamoActualizado->condicion_devolucion);
-        $this->assertSame(
-            "Entrega: Entregado con cargador original\nDevolución: Devuelto a tiempo y en óptimas condiciones",
-            $prestamoActualizado->observaciones
-        );
+        $this->assertSame('Entregado con cargador original', $prestamoActualizado->observaciones_entrega);
+        $this->assertSame('Devuelto a tiempo y en óptimas condiciones', $prestamoActualizado->observaciones_devolucion);
 
         // El equipo debe regresar a 'disponible'
         $this->assertSame(Equipo::ESTADO_DISPONIBLE, $equipo->fresh()->estado);

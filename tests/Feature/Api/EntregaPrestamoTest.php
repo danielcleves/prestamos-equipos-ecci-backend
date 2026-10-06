@@ -31,7 +31,6 @@ class EntregaPrestamoTest extends TestCase
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
         $prestamo = Prestamo::factory()->aprobado()->create([
             'equipo_id' => $equipo->id,
-            'observaciones' => null,
         ]);
 
         $historialPrevioCount = HistorialEstado::where('equipo_id', $equipo->id)->count();
@@ -48,7 +47,7 @@ class EntregaPrestamoTest extends TestCase
             ->assertJsonPath('data.estado_etiqueta', 'Entregado')
             ->assertJsonPath('data.entregado_por', $encargado->id)
             ->assertJsonPath('data.condicion_entrega', CondicionEquipo::Bueno->value)
-            ->assertJsonPath('data.observaciones', 'Entrega: Equipo entregado con maletín y cables');
+            ->assertJsonPath('data.observaciones_entrega', 'Equipo entregado con maletín y cables');
 
         // El préstamo debe estar en estado entregado
         $prestamoActualizado = Prestamo::findOrFail($prestamo->id);

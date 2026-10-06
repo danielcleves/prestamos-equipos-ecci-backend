@@ -42,8 +42,9 @@ return new class extends Migration
             $table->foreignId('entregado_por')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('recibido_por')->nullable()->constrained('users')->nullOnDelete();
 
-            // Observaciones acumuladas (prefijadas por momento: "Entrega: ...", "Devolución: ...")
-            $table->text('observaciones')->nullable();
+            // Observaciones registradas en entrega y devolución (visibles solo para personal administrativo)
+            $table->text('observaciones_entrega')->nullable();
+            $table->text('observaciones_devolucion')->nullable();
 
             $table->timestamps();
 

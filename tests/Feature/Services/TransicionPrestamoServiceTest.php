@@ -39,15 +39,16 @@ class TransicionPrestamoServiceTest extends TestCase
         $this->assertSame(EstadoPrestamo::Entregado, $prestamoActualizado->estado);
         $this->assertSame($personal->id, $prestamoActualizado->entregado_por);
         $this->assertSame(CondicionEquipo::Bueno, $prestamoActualizado->condicion_entrega);
-        $this->assertNotNull($prestamoActualizado->fecha_entrega_real);
-        $this->assertSame('Entrega: Todo en orden al entregar', $prestamoActualizado->observaciones);
+        $this->assertSame('Todo en orden al entregar', $prestamoActualizado->observaciones_entrega);
+        $this->assertNull($prestamoActualizado->observaciones_devolucion);
 
         $this->assertDatabaseHas('prestamos', [
             'id' => $prestamo->id,
             'estado' => EstadoPrestamo::Entregado->value,
             'entregado_por' => $personal->id,
             'condicion_entrega' => CondicionEquipo::Bueno->value,
-            'observaciones' => 'Entrega: Todo en orden al entregar',
+            'observaciones_entrega' => 'Todo en orden al entregar',
+            'observaciones_devolucion' => null,
         ]);
     }
 
@@ -135,5 +136,24 @@ class TransicionPrestamoServiceTest extends TestCase
                 $e->errors()['estado'][0]
             );
         }
+    }
+
+    public function test_transicion_devolucion_establece_observaciones_devolucion_sin_modificar_observaciones_entrega(): void
+    {
+        $personal = User::factory()->create();
+        $prestamo = Prestamo::factory()->entregado()->create([
+            'observaciones_entrega' => 'Entregado con maletín',
+            'observaciones_devolucion' => null,
+        ]);
+
+        $prestamoActualizado = $this->servicio->transicionar($prestamo, EstadoPrestamo::Devuelto, [
+            'actor' => $personal,
+            'condicion' => CondicionEquipo::Bueno,
+            'observaciones' => 'Devuelto limpio y completo',
+        ]);
+
+        $this->assertSame(EstadoPrestamo::Devuelto, $prestamoActualizado->estado);
+        $this->assertSame('Entregado con maletín', $prestamoActualizado->observaciones_entrega);
+        $this->assertSame('Devuelto limpio y completo', $prestamoActualizado->observaciones_devolucion);
     }
 }

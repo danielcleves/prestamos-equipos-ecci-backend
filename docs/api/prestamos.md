@@ -116,7 +116,6 @@ Content-Type: application/json
     "usuario_entrega": null,
     "recibido_por": null,
     "usuario_recepcion": null,
-    "observaciones": null,
     "created_at": "2026-10-05T14:30:00.000000Z",
     "updated_at": "2026-10-05T14:30:00.000000Z"
   }
@@ -141,9 +140,10 @@ Lista paginada de préstamos:
 Consulta el detalle puntual de un préstamo.
 - **Acceso:** El solicitante dueño del préstamo, administradores y encargados.
 - **Visibilidad y confidencialidad:** Si un usuario común intenta consultar un préstamo que no le pertenece, la API responde `404 Not Found` (`{"message": "Recurso no encontrado."}`) con el mismo cuerpo que si el ID no existiera, evitando revelar la existencia del registro (mismo criterio de `EquipoController`).
-- **Privacidad de datos de usuarios anidados:**
+- **Privacidad de datos de usuarios anidados y observaciones:**
   - `usuario_entrega` y `usuario_recepcion`: Siempre devuelven únicamente `{ "id": int, "name": string }` (mismo formato mínimo de `HistorialEstadoResource`).
   - `solicitante`: Para rol `usuario` devuelve solo `{ "id": int, "name": string }`. Para roles administrativos (`admin`, `encargado`) incluye además `{ "email": string, "is_active": bool, "roles": [...] }`.
+  - `observaciones_entrega` y `observaciones_devolucion`: Visibles exclusivamente para roles administrativos (`admin`, `encargado`). Los usuarios solicitantes no reciben ninguna de las dos claves en la respuesta. Las condiciones físicas (`condicion_entrega` y `condicion_devolucion`) con sus etiquetas sí permanecen visibles para el solicitante.
 
 #### Ejemplo para rol `usuario`:
 ```json
@@ -190,7 +190,6 @@ Consulta el detalle puntual de un préstamo.
       "id": 5,
       "name": "Prueba Encargado"
     },
-    "observaciones": "Entrega: Se entrega con cargador\nDevolución: Golpe en la esquina",
     "created_at": "2026-10-05T19:58:38+00:00",
     "updated_at": "2026-10-05T19:59:40+00:00"
   }
@@ -246,7 +245,8 @@ Consulta el detalle puntual de un préstamo.
       "id": 5,
       "name": "Prueba Encargado"
     },
-    "observaciones": "Entrega: Se entrega con cargador\nDevolución: Golpe en la esquina",
+    "observaciones_entrega": "Se entrega con cargador",
+    "observaciones_devolucion": "Golpe en la esquina",
     "created_at": "2026-10-05T19:58:38+00:00",
     "updated_at": "2026-10-05T19:59:40+00:00"
   }
@@ -275,7 +275,7 @@ Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha si
 - El préstamo debe estar en estado `aprobado` (si no, retorna `422`).
 - El equipo debe encontrarse disponible físicamente.
 - `fecha_entrega_real` no puede ser posterior al momento actual (con tolerancia de 1 minuto) ni anterior a la fecha de aprobación del préstamo (`fecha_aprobacion`).
-- El préstamo pasa a `entregado`, se almacena `fecha_entrega_real`, `entregado_por` (usuario autenticado), `condicion_entrega` y se anexa la observación con prefijo `"Entrega: "`.
+- El préstamo pasa a `entregado`, se almacena `fecha_entrega_real`, `entregado_por` (usuario autenticado), `condicion_entrega` y se guarda la observación en `observaciones_entrega`.
 - El equipo cambia de estado a `en_prestamo` (registrado automáticamente en `historial_estados`).
 
 ### Payload de la petición
@@ -283,7 +283,7 @@ Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha si
 |---|---|---|---|
 | `fecha_entrega_real` | datetime | No | Fecha/hora real de entrega. Por defecto `now()`. Mismos formatos aceptados que en solicitud; sin desplazamiento se interpreta en hora de Colombia. No puede ser futura ni anterior a `fecha_aprobacion`. |
 | `condicion_entrega` | string | No | `bueno`, `con_danos`, `requiere_mantenimiento` (por defecto `bueno`). |
-| `observaciones` | string | No | Observaciones sobre la condición de entrega (máx. 2000 caracteres). |
+| `observaciones` | string | No | Observaciones sobre la condición de entrega (máx. 2000 caracteres). Se almacena en la columna `observaciones_entrega`. |
 
 ### Ejemplo de petición
 ```json
@@ -304,7 +304,7 @@ Exclusivo para roles `admin` y `encargado`. Registra la recepción física del e
 - `fecha_devolucion_real` no puede ser posterior al momento actual (con tolerancia de 1 minuto) ni anterior a la fecha real de entrega (`fecha_entrega_real`).
 - `condicion_devolucion` es obligatoria (`bueno`, `con_danos`, `requiere_mantenimiento`).
 - Si la condición es distinta de `bueno`, el campo `observaciones` es **obligatorio**.
-- El préstamo pasa a `devuelto`, se almacena `fecha_devolucion_real`, `recibido_por` y se concatena la observación con prefijo `"Devolución: "` en nueva línea sin sobrescribir las observaciones previas de la entrega.
+- El préstamo pasa a `devuelto`, se almacena `fecha_devolucion_real`, `recibido_por` y se almacena la observación en `observaciones_devolucion`, conservando intactas las observaciones previas de la entrega (`observaciones_entrega`).
 - Si la condición es `bueno`, el equipo regresa a `disponible`. En cualquier otro caso, pasa a `mantenimiento` (registrado en `historial_estados`).
 
 ### Payload de la petición

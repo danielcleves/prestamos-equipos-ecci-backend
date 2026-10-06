@@ -7,9 +7,11 @@ use App\Http\Resources\PrestamoResource;
 use App\Models\Equipo;
 use App\Models\Prestamo;
 use App\Models\User;
+use App\Services\SolicitudPrestamoService;
 use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class SolicitudPrestamoTest extends TestCase
@@ -283,9 +285,9 @@ class SolicitudPrestamoTest extends TestCase
             'estado' => EstadoPrestamo::Solicitado,
         ]);
 
-        $service = app(\App\Services\SolicitudPrestamoService::class);
+        $service = app(SolicitudPrestamoService::class);
 
-        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectException(ValidationException::class);
 
         try {
             $service->solicitar($usuario, [
@@ -294,7 +296,7 @@ class SolicitudPrestamoTest extends TestCase
                 'fecha_inicio' => now()->addDay(),
                 'fecha_devolucion_estimada' => now()->addDays(2),
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             $this->assertArrayHasKey('usuario_id', $e->errors());
             $this->assertSame(
                 'Has alcanzado el límite máximo de 3 préstamos activos.',
@@ -688,5 +690,33 @@ class SolicitudPrestamoTest extends TestCase
             ['id' => $encargado->id, 'name' => 'Encargado Auditor'],
             $resListado->json('data.0.usuario_entrega')
         );
+    }
+
+    public function test_rol_usuario_no_recibe_observaciones_y_encargado_recibe_ambas(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+
+        $encargado = User::factory()->create();
+        $encargado->assignRole('encargado');
+
+        $prestamo = Prestamo::factory()->devuelto()->create([
+            'usuario_id' => $usuario->id,
+            'observaciones_entrega' => 'Entrega sin novedades',
+            'observaciones_devolucion' => 'Devolución impecable',
+        ]);
+
+        // Rol usuario: no recibe observaciones_entrega ni observaciones_devolucion
+        $resUsuario = $this->actingAs($usuario, 'sanctum')->getJson("/api/prestamos/{$prestamo->id}");
+        $resUsuario->assertStatus(200)
+            ->assertJsonMissingPath('data.observaciones_entrega')
+            ->assertJsonMissingPath('data.observaciones_devolucion')
+            ->assertJsonMissingPath('data.observaciones');
+
+        // Rol encargado: recibe ambas claves
+        $resEncargado = $this->actingAs($encargado, 'sanctum')->getJson("/api/prestamos/{$prestamo->id}");
+        $resEncargado->assertStatus(200)
+            ->assertJsonPath('data.observaciones_entrega', 'Entrega sin novedades')
+            ->assertJsonPath('data.observaciones_devolucion', 'Devolución impecable');
     }
 }
