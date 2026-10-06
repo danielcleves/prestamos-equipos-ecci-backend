@@ -48,7 +48,8 @@ return new class extends Migration
 
             $table->timestamps();
 
-            // Indices requeridos para optimizar consultas de disponibilidad y limites de usuario
+            // Indices requeridos para optimizar consultas de disponibilidad, limites de usuario, listado de activos y deteccion de retrasos
+            $table->index('estado');
             $table->index(['equipo_id', 'estado']);
             $table->index(['usuario_id', 'estado']);
         });
