@@ -104,6 +104,7 @@ El repositorio cuenta con dos modalidades de pruebas automatizadas:
    - **Cuándo usarlo:** De forma obligatoria antes de abrir o actualizar cualquier Pull Request hacia `develop`.
    - **Configuración:** Utiliza `phpunit.mysql.xml`, ejecutándose exclusivamente sobre la base de datos aislada `prestamos_test` para validar la compatibilidad real con MySQL 8.0 (bloqueos pesimistas `lockForUpdate()`, claves foráneas, tipos y dialecto SQL).
    - **Salvaguarda:** Una guardia de seguridad (`GuardiaBaseDatos`) aborta la suite si la conexión es MySQL y la base de datos no termina en `_test`, garantizando que la base de desarrollo local (`prestamos_equipos`) jamás sea modificada ni truncada.
+   - ⚠️ **No admite ejecuciones simultáneas:** La suite contra MySQL usa una única base (`prestamos_test`) y la recrea al iniciar (`migrate:fresh`). Por lo tanto, **no se pueden ejecutar dos corridas de `test:mysql` al mismo tiempo** (por ejemplo, desde dos terminales distintas o mientras un agente de IA la está corriendo). Los síntomas de una ejecución paralela son errores de *"Table doesn't exist"*, *"Table definition has changed"* o *"Deadlock"* en tests que normalmente pasan.
 
 ### Inicialización de la base de pruebas (`prestamos_test`)
 
