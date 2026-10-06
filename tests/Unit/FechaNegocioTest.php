@@ -54,6 +54,17 @@ class FechaNegocioTest extends TestCase
         $this->assertSame('2026-10-15 13:00:00', $carbon->format('Y-m-d H:i:s'));
     }
 
+    public function test_parsear_iso8601_con_desplazamiento_sin_segundos(): void
+    {
+        $this->assertTrue(FechaNegocio::esValida('2026-10-15T08:00-05:00'));
+
+        $carbon = FechaNegocio::parsear('2026-10-15T08:00-05:00');
+
+        $this->assertNotNull($carbon);
+        $this->assertSame('UTC', $carbon->timezoneName);
+        $this->assertSame('2026-10-15 13:00:00', $carbon->format('Y-m-d H:i:s'));
+    }
+
     public function test_parsear_iso8601_con_z(): void
     {
         $carbon = FechaNegocio::parsear('2026-10-15T13:00:00Z');
@@ -61,6 +72,17 @@ class FechaNegocioTest extends TestCase
         $this->assertNotNull($carbon);
         $this->assertSame('UTC', $carbon->timezoneName);
         $this->assertSame('2026-10-15 13:00:00', $carbon->format('Y-m-d H:i:s'));
+    }
+
+    public function test_parsear_iso8601_con_z_sin_segundos(): void
+    {
+        $this->assertTrue(FechaNegocio::esValida('2026-10-15T08:00Z'));
+
+        $carbon = FechaNegocio::parsear('2026-10-15T08:00Z');
+
+        $this->assertNotNull($carbon);
+        $this->assertSame('UTC', $carbon->timezoneName);
+        $this->assertSame('2026-10-15 08:00:00', $carbon->format('Y-m-d H:i:s'));
     }
 
     public function test_parsear_iso8601_con_fraccion_de_segundos_y_z(): void

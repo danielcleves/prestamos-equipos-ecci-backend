@@ -48,7 +48,7 @@ La aplicación y la base de datos operan internamente en **UTC**. La zona horari
 **Formatos de entrada aceptados:**
 1. `"Y-m-d H:i"` y `"Y-m-d H:i:s"` (sin desplazamiento: se interpretan en hora de Colombia).
 2. `"Y-m-d\TH:i"` y `"Y-m-d\TH:i:s"` (sin desplazamiento: se interpretan en hora de Colombia).
-3. ISO 8601 con desplazamiento o Z (`"Y-m-d\TH:i:sP"`, con o sin fracción de segundos).
+3. ISO 8601 con desplazamiento o Z (con o sin segundos, con o sin fracción de segundos, ej. `"2026-10-15T08:00-05:00"` y `"2026-10-15T08:00Z"`).
 
 Cualquier otro formato se rechaza estrictamente con **HTTP 422**:
 - Fechas sin hora (ej. `"2026-10-15"`).

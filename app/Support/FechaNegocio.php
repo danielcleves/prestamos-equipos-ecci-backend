@@ -15,11 +15,11 @@ class FechaNegocio
      *    - Y-m-d H:i:s
      *    - Y-m-d\TH:i
      *    - Y-m-d\TH:i:s
-     * 2. ISO 8601 con desplazamiento o Z (Y-m-d\TH:i:sP, con o sin fracción de segundos).
+     * 2. ISO 8601 con desplazamiento o Z (con o sin segundos, con o sin fracción de segundos).
      */
     private const PATRON_SIN_DESPLAZAMIENTO = '/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?$/';
 
-    private const PATRON_CON_DESPLAZAMIENTO = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)$/';
+    private const PATRON_CON_DESPLAZAMIENTO = '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)$/';
 
     /**
      * Retorna el identificador de la zona horaria de negocio (por defecto America/Bogota).
