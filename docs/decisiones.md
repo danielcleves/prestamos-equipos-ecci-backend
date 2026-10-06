@@ -105,3 +105,11 @@ Decisiones adoptadas en esta rama:
 
 Ver `docs/api/prestamos.md` para el contrato completo de la API.
 
+## Estrategia de pruebas y doble motor: SQLite y MySQL 8.0
+
+- **Ejecución por defecto en SQLite (`composer test`):** Los tests corren por defecto en SQLite en memoria (`:memory:`) mediante `phpunit.xml`. Su objetivo es brindar ciclos de retroalimentación rápidos durante el desarrollo local e iterativo.
+- **Validación en MySQL 8.0 (`composer test:mysql`):** Antes de abrir o actualizar cualquier Pull Request, la suite completa debe ejecutarse contra MySQL 8.0 sobre la base aislada `prestamos_test` mediante `phpunit.mysql.xml`.
+- **Motivación técnica:** SQLite no replica fielmente el comportamiento de MySQL 8.0: no valida bloqueos pesimistas (`lockForUpdate()`), índices, restricciones de dialecto SQL ni el manejo estricto de tipos y claves foráneas del motor de producción.
+- **Aislamiento y salvaguarda (`GuardiaBaseDatos`):** La suite cuenta con una guardia estricta en el ciclo de vida de `TestCase` y en `EntornoDePruebasTest` que aborta si la conexión es MySQL y la base de datos no termina en `_test`, o si es SQLite y no está en memoria. Esto garantiza que la base de desarrollo local (`prestamos_equipos`) nunca sea modificada ni limpiada por `RefreshDatabase`.
+- **Limitación conocida:** Las dos suites se ejecutan de manera secuencial dentro del proceso de pruebas. La concurrencia real entre peticiones HTTP simultáneas (dos peticiones concurrentes disputando el mismo equipo o el cupo de préstamos) no la cubre ninguna de las dos suites automáticas, por lo que la protección recae en el diseño estricto de transacciones atómicas con bloqueos pesimistas unidireccionales (`lockForUpdate()`).
+

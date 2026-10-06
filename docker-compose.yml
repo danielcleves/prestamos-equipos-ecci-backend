@@ -50,6 +50,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Define DB_ROOT_PASSWORD en el archivo .env (copia .env.example)}
     volumes:
       - prestamos_db_data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d:ro
     healthcheck:
       # -h 127.0.0.1 fuerza TCP: el servidor temporal que MySQL levanta durante la
       # inicializacion solo escucha por socket, asi que no da un OK prematuro.
