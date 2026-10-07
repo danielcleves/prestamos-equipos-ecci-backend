@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PrestamoController extends Controller
 {
@@ -27,15 +28,36 @@ class PrestamoController extends Controller
      * Lista los préstamos según el rol:
      * - usuario común: únicamente sus propios préstamos.
      * - admin y encargado: todos los préstamos.
+     *
+     * Soporta filtro opcional por ?estado=.
      */
     public function index(Request $request): JsonResponse
     {
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $query = Prestamo::with(['equipo.categoria', 'solicitante', 'entregadoPor', 'recibidoPor']);
+        $query = Prestamo::with([
+            'equipo.categoria',
+            'solicitante',
+            'gestionadoPor',
+            'entregadoPor',
+            'recibidoPor',
+        ]);
 
         if (! $request->user()->esPersonalAdministrativo()) {
             $query->where('usuario_id', $request->user()->id);
+        }
+
+        if ($request->has('estado')) {
+            $estadoParam = $request->query('estado');
+            if ($estadoParam !== null && $estadoParam !== '') {
+                $estado = EstadoPrestamo::tryFrom($estadoParam);
+                if (! $estado) {
+                    throw ValidationException::withMessages([
+                        'estado' => ['El estado especificado no es válido.'],
+                    ]);
+                }
+                $query->where('estado', $estado->value);
+            }
         }
 
         $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
