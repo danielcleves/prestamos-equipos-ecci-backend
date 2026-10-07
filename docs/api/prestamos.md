@@ -1,7 +1,8 @@
-# Ciclo de préstamos (HU-06, HU-09, HU-11)
+# Ciclo de préstamos (HU-06, HU-08, HU-09, HU-11)
 
 Implementa la gestión integral del ciclo de préstamos de equipos universitarios:
 - **HU-06:** Solicitud de préstamo con motivo, fechas y verificación de disponibilidad.
+- **HU-08:** Gestión de solicitudes: aprobación y rechazo con motivo obligatorio por personal autorizado.
 - **HU-09:** Registro de entrega del equipo por personal autorizado.
 - **HU-11:** Registro de devolución del equipo y actualización de condición física/estado.
 
@@ -11,10 +12,12 @@ Implementa la gestión integral del ciclo de préstamos de equipos universitario
 
 | Método | Endpoint | Rol requerido | Propósito |
 |---|---|---|---|
-| `GET` | `/api/prestamos` | Cualquier autenticado | Listado paginado de préstamos (usuario común ve solo los suyos; admin y encargado ven todos). |
+| `GET` | `/api/prestamos` | Cualquier autenticado | Listado paginado de préstamos (usuario común ve solo los suyos; admin y encargado ven todos). Soporta filtro opcional `?estado=`. |
 | `POST` | `/api/prestamos` | Cualquier autenticado | Registra una nueva solicitud de préstamo en estado `solicitado`. |
 | `GET` | `/api/prestamos/activos` | `admin`, `encargado` | Listado paginado de préstamos activos (`entregado`) con búsqueda textual. |
 | `GET` | `/api/prestamos/{prestamo}` | Propietario / `admin` / `encargado` | Consulta el detalle puntual de un préstamo. |
+| `POST` | `/api/prestamos/{prestamo}/aprobacion` | `admin`, `encargado` | Aprueba una solicitud (`solicitado` -> `aprobado`). |
+| `POST` | `/api/prestamos/{prestamo}/rechazo` | `admin`, `encargado` | Rechaza una solicitud con motivo obligatorio (`solicitado` -> `rechazado`). |
 | `POST` | `/api/prestamos/{prestamo}/entrega` | `admin`, `encargado` | Registra la entrega del equipo (`aprobado` -> `entregado`). |
 | `POST` | `/api/prestamos/{prestamo}/devolucion` | `admin`, `encargado` | Registra la devolución del equipo (`entregado` -> `devuelto`). |
 
@@ -131,7 +134,10 @@ Lista paginada de préstamos:
 - **`admin` y `encargado`**: Retorna todos los préstamos registrados.
 
 ### Parámetros opcionales
-- `per_page`: Entero de 1 a 100 (por defecto 15).
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `estado` | string | Filtra por estado del préstamo: `solicitado`, `aprobado`, `rechazado`, `entregado`, `devuelto`, `cancelado`. Si se envía un valor no soportado, responde con **HTTP 422** (`errors.estado`). Si viene vacío, no aplica filtro. |
+| `per_page` | entero | Entero de 1 a 100 (por defecto 15). |
 
 ---
 
@@ -141,8 +147,9 @@ Consulta el detalle puntual de un préstamo.
 - **Acceso:** El solicitante dueño del préstamo, administradores y encargados.
 - **Visibilidad y confidencialidad:** Si un usuario común intenta consultar un préstamo que no le pertenece, la API responde `404 Not Found` (`{"message": "Recurso no encontrado."}`) con el mismo cuerpo que si el ID no existiera, evitando revelar la existencia del registro (mismo criterio de `EquipoController`).
 - **Privacidad de datos de usuarios anidados y observaciones:**
-  - `usuario_entrega` y `usuario_recepcion`: Siempre devuelven únicamente `{ "id": int, "name": string }` (mismo formato mínimo de `HistorialEstadoResource`).
+  - `usuario_gestion`, `usuario_entrega` y `usuario_recepcion`: Siempre devuelven únicamente `{ "id": int, "name": string }` (mismo formato mínimo de `HistorialEstadoResource`).
   - `solicitante`: Para rol `usuario` devuelve solo `{ "id": int, "name": string }`. Para roles administrativos (`admin`, `encargado`) incluye además `{ "email": string, "is_active": bool, "roles": [...] }`.
+  - `motivo_rechazo`: Visible tanto para roles administrativos (`admin`, `encargado`) como para el usuario solicitante dueño del préstamo.
   - `observaciones_entrega` y `observaciones_devolucion`: Visibles exclusivamente para roles administrativos (`admin`, `encargado`). Los usuarios solicitantes no reciben ninguna de las dos claves en la respuesta. Las condiciones físicas (`condicion_entrega` y `condicion_devolucion`) con sus etiquetas sí permanecen visibles para el solicitante.
 
 #### Ejemplo para rol `usuario`:
@@ -174,12 +181,19 @@ Consulta el detalle puntual de un préstamo.
     "fecha_inicio": "2026-10-06T08:00:00-05:00",
     "fecha_devolucion_estimada": "2026-10-07T17:00:00-05:00",
     "fecha_aprobacion": "2026-10-05T14:59:18-05:00",
+    "fecha_rechazo": null,
+    "motivo_rechazo": null,
     "fecha_entrega_real": "2026-10-05T14:59:32-05:00",
     "fecha_devolucion_real": "2026-10-05T14:59:40-05:00",
     "condicion_entrega": "bueno",
     "condicion_entrega_etiqueta": "Bueno",
     "condicion_devolucion": "con_danos",
     "condicion_devolucion_etiqueta": "Con daños",
+    "gestionado_por": 5,
+    "usuario_gestion": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
     "entregado_por": 5,
     "usuario_entrega": {
       "id": 5,
@@ -229,12 +243,19 @@ Consulta el detalle puntual de un préstamo.
     "fecha_inicio": "2026-10-06T08:00:00-05:00",
     "fecha_devolucion_estimada": "2026-10-07T17:00:00-05:00",
     "fecha_aprobacion": "2026-10-05T14:59:18-05:00",
+    "fecha_rechazo": null,
+    "motivo_rechazo": null,
     "fecha_entrega_real": "2026-10-05T14:59:32-05:00",
     "fecha_devolucion_real": "2026-10-05T14:59:40-05:00",
     "condicion_entrega": "bueno",
     "condicion_entrega_etiqueta": "Bueno",
     "condicion_devolucion": "con_danos",
     "condicion_devolucion_etiqueta": "Con daños",
+    "gestionado_por": 5,
+    "usuario_gestion": {
+      "id": 5,
+      "name": "Prueba Encargado"
+    },
     "entregado_por": 5,
     "usuario_entrega": {
       "id": 5,
@@ -255,7 +276,59 @@ Consulta el detalle puntual de un préstamo.
 
 ---
 
-## 5. Préstamos Activos (`GET /api/prestamos/activos` — HU-11)
+## 5. Aprobación de Solicitud (`POST /api/prestamos/{prestamo}/aprobacion` — HU-08 KAN-98)
+
+Exclusivo para roles `admin` y `encargado`. Transiciona una solicitud de estado `solicitado` a `aprobado`.
+
+### Reglas de negocio
+- El préstamo debe encontrarse en estado `solicitado` (de lo contrario retorna `422` con `errors.estado`).
+- El equipo asociado debe estar en estado físico `disponible`. Si se encuentra en mantenimiento, en préstamo o dado de baja, se rechaza con `422` con mensaje descriptivo en `errors.equipo`.
+- Se registra `estado = 'aprobado'`, `fecha_aprobacion = now()` y `gestionado_por = auth()->id()`.
+- El equipo físico se mantiene en estado `disponible` hasta que se registre la entrega física (HU-09).
+- Bloqueo pesimista: adquisición atómica en orden unidireccional `equipo -> préstamo` para prevenir condiciones de carrera e interbloqueos.
+
+### Respuestas
+- **`200 OK`**: Retorna el recurso `PrestamoResource` con el estado actualizado y los datos de gestión.
+- **`401 Unauthorized`**: Petición sin token de autenticación.
+- **`403 Forbidden`**: Si el rol autenticado es `usuario`.
+- **`404 Not Found`**: Si el préstamo no existe.
+- **`422 Unprocessable Content`**: Si el préstamo no está en estado `solicitado` o el equipo no está disponible.
+
+---
+
+## 6. Rechazo de Solicitud (`POST /api/prestamos/{prestamo}/rechazo` — HU-08 KAN-99)
+
+Exclusivo para roles `admin` y `encargado`. Transiciona una solicitud de estado `solicitado` a `rechazado`.
+
+### Payload de la petición
+| Campo | Tipo | Obligatorio | Reglas de validación |
+|---|---|---|---|
+| `motivo` | string | Sí | Máx. 1000 caracteres. No puede estar vacío ni contener solo espacios (regla `TextoNoVacio`). Se almacena recortado (`trim`). |
+
+### Reglas de negocio
+- El préstamo debe encontrarse en estado `solicitado` (de lo contrario retorna `422` con `errors.estado`).
+- Se registra `estado = 'rechazado'`, `fecha_rechazo = now()`, `gestionado_por = auth()->id()` y `motivo_rechazo = trim(motivo)`.
+- El equipo físico no se altera y queda habilitado para otras solicitudes en las mismas u otras fechas.
+- La solicitud rechazada no computa dentro del límite de préstamos activos (`max_activos_por_usuario`).
+- El motivo del rechazo es visible para el solicitante al consultar el préstamo para su debida retroalimentación.
+
+### Ejemplo de petición
+```json
+{
+  "motivo": "El equipo se encuentra reservado para un examen de certificación institucional en las fechas solicitadas."
+}
+```
+
+### Respuestas
+- **`200 OK`**: Retorna el recurso `PrestamoResource` en estado `rechazado`.
+- **`401 Unauthorized`**: Petición sin token.
+- **`403 Forbidden`**: Si el rol autenticado es `usuario`.
+- **`404 Not Found`**: Si el préstamo no existe.
+- **`422 Unprocessable Content`**: Si falta el motivo, está en blanco, supera 1000 caracteres, o el préstamo no se encuentra en estado `solicitado`.
+
+---
+
+## 7. Préstamos Activos (`GET /api/prestamos/activos` — HU-11)
 
 Exclusivo para roles `admin` y `encargado`. Devuelve préstamos actualmente en posesión del solicitante (`estado = 'entregado'`).
 
@@ -267,7 +340,7 @@ Exclusivo para roles `admin` y `encargado`. Devuelve préstamos actualmente en p
 
 ---
 
-## 6. Registro de Entrega (`POST /api/prestamos/{prestamo}/entrega` — HU-09)
+## 8. Registro de Entrega (`POST /api/prestamos/{prestamo}/entrega` — HU-09)
 
 Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha sido entregado al solicitante.
 
@@ -295,7 +368,7 @@ Exclusivo para roles `admin` y `encargado`. Registra que el equipo físico ha si
 
 ---
 
-## 7. Registro de Devolución (`POST /api/prestamos/{prestamo}/devolucion` — HU-11)
+## 9. Registro de Devolución (`POST /api/prestamos/{prestamo}/devolucion` — HU-11)
 
 Exclusivo para roles `admin` y `encargado`. Registra la recepción física del equipo devuelto.
 
