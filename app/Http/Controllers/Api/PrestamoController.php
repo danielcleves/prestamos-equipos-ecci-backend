@@ -126,7 +126,7 @@ class PrestamoController extends Controller
 
     /**
      * Consulta el detalle de un préstamo puntual.
-     * Protegido por PrestamoPolicy: el solicitante solo puede ver el suyo; personal administrativo ve cualquiera.
+     * Protegido por asegurarVisibilidad: el solicitante solo puede ver el suyo; personal administrativo ve cualquiera.
      */
     public function show(Request $request, Prestamo $prestamo): JsonResponse
     {
