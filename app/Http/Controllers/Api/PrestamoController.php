@@ -35,13 +35,7 @@ class PrestamoController extends Controller
     {
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $query = Prestamo::with([
-            'equipo.categoria',
-            'solicitante',
-            'gestionadoPor',
-            'entregadoPor',
-            'recibidoPor',
-        ]);
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO);
 
         if (! $request->user()->esPersonalAdministrativo()) {
             $query->where('usuario_id', $request->user()->id);
@@ -81,7 +75,7 @@ class PrestamoController extends Controller
     {
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $query = Prestamo::with(['equipo.categoria', 'solicitante', 'entregadoPor'])
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
             ->where('estado', EstadoPrestamo::Entregado->value);
 
         if ($request->filled('buscar')) {
@@ -120,7 +114,7 @@ class PrestamoController extends Controller
         $prestamo = $service->solicitar($request->user(), $request->validated());
 
         return response()->json([
-            'data' => new PrestamoResource($prestamo->load(['equipo.categoria', 'solicitante'])),
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
         ], 201);
     }
 
@@ -133,13 +127,7 @@ class PrestamoController extends Controller
         $this->asegurarVisibilidad($request->user(), $prestamo);
 
         return response()->json([
-            'data' => new PrestamoResource($prestamo->load([
-                'equipo.categoria',
-                'solicitante',
-                'gestionadoPor',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -154,13 +142,7 @@ class PrestamoController extends Controller
         $prestamoActualizado = $service->aprobar($prestamo, $request->user());
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'gestionadoPor',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -179,13 +161,7 @@ class PrestamoController extends Controller
         );
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'gestionadoPor',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -204,11 +180,7 @@ class PrestamoController extends Controller
         );
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'entregadoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -227,12 +199,7 @@ class PrestamoController extends Controller
         );
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 

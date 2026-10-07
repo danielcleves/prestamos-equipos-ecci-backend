@@ -38,6 +38,20 @@ class Prestamo extends Model
     use HasFactory;
 
     /**
+     * Relaciones requeridas por PrestamoResource para garantizar la misma
+     * estructura de claves en todas las respuestas de la API.
+     *
+     * @var list<string>
+     */
+    public const RELACIONES_RECURSO = [
+        'equipo.categoria',
+        'solicitante',
+        'gestionadoPor',
+        'entregadoPor',
+        'recibidoPor',
+    ];
+
+    /**
      * @return array<string, string>
      */
     protected function casts(): array
