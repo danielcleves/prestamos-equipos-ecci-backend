@@ -96,6 +96,30 @@ class SolicitudPrestamoTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors(['motivo']);
     }
 
+    public function test_solicitud_almacena_motivo_recortado_sin_espacios_en_los_extremos(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+
+        $fechaInicio = now()->addDay()->setHour(10)->setMinute(0)->setSecond(0);
+        $fechaDevolucion = (clone $fechaInicio)->addDays(3);
+
+        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
+            'equipo_id' => $equipo->id,
+            'motivo' => "   Motivo de solicitud con espacios alrededor   \n",
+            'fecha_inicio' => $fechaInicio->toDateTimeString(),
+            'fecha_devolucion_estimada' => $fechaDevolucion->toDateTimeString(),
+        ]);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('prestamos', [
+            'id' => $response->json('data.id'),
+            'motivo' => 'Motivo de solicitud con espacios alrededor',
+        ]);
+    }
+
     public function test_rechaza_solicitud_de_equipo_dado_de_baja_con_mensaje_especifico(): void
     {
         $usuario = User::factory()->create();

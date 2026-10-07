@@ -6,6 +6,7 @@ use App\Enums\EstadoPrestamo;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DevolucionPrestamoRequest;
 use App\Http\Requests\Api\EntregaPrestamoRequest;
+use App\Http\Requests\Api\RechazoPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Services\AprobacionPrestamoService;
 use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
+use App\Services\RechazoPrestamoService;
 use App\Services\SolicitudPrestamoService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -128,6 +130,31 @@ class PrestamoController extends Controller
         AprobacionPrestamoService $service
     ): JsonResponse {
         $prestamoActualizado = $service->aprobar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load([
+                'equipo.categoria',
+                'solicitante',
+                'gestionadoPor',
+                'entregadoPor',
+                'recibidoPor',
+            ])),
+        ]);
+    }
+
+    /**
+     * HU-08: Rechaza una solicitud de préstamo con motivo obligatorio (solo personal autorizado).
+     */
+    public function rechazo(
+        RechazoPrestamoRequest $request,
+        Prestamo $prestamo,
+        RechazoPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->rechazar(
+            $prestamo,
+            $request->user(),
+            $request->validated('motivo')
+        );
 
         return response()->json([
             'data' => new PrestamoResource($prestamoActualizado->load([
