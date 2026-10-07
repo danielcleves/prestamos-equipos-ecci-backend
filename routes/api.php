@@ -45,10 +45,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
 // Rutas de préstamos para personal administrativo (admin y encargado):
 // - HU-11: consulta de préstamos activos (registrada ANTES de /prestamos/{prestamo} para evitar colisión)
+// - HU-08: aprobación de solicitudes
 // - HU-09: registro de entrega
 // - HU-11: registro de devolución
 Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
     Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
+    Route::post('/prestamos/{prestamo}/aprobacion', [PrestamoController::class, 'aprobacion']);
     Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
     Route::post('/prestamos/{prestamo}/devolucion', [PrestamoController::class, 'devolucion']);
 });

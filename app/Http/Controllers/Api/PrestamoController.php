@@ -10,6 +10,7 @@ use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
 use App\Models\User;
+use App\Services\AprobacionPrestamoService;
 use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
 use App\Services\SolicitudPrestamoService;
@@ -111,6 +112,28 @@ class PrestamoController extends Controller
             'data' => new PrestamoResource($prestamo->load([
                 'equipo.categoria',
                 'solicitante',
+                'gestionadoPor',
+                'entregadoPor',
+                'recibidoPor',
+            ])),
+        ]);
+    }
+
+    /**
+     * HU-08: Aprueba una solicitud de préstamo (solo personal autorizado: admin y encargado).
+     */
+    public function aprobacion(
+        Request $request,
+        Prestamo $prestamo,
+        AprobacionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->aprobar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load([
+                'equipo.categoria',
+                'solicitante',
+                'gestionadoPor',
                 'entregadoPor',
                 'recibidoPor',
             ])),
