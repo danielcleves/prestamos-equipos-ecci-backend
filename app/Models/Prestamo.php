@@ -20,12 +20,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'fecha_inicio',
     'fecha_devolucion_estimada',
     'fecha_aprobacion',
+    'fecha_rechazo',
     'fecha_entrega_real',
     'fecha_devolucion_real',
     'condicion_entrega',
     'condicion_devolucion',
     'entregado_por',
     'recibido_por',
+    'gestionado_por',
+    'motivo_rechazo',
     'observaciones_entrega',
     'observaciones_devolucion',
 ])]
@@ -47,6 +50,7 @@ class Prestamo extends Model
             'fecha_inicio' => 'datetime',
             'fecha_devolucion_estimada' => 'datetime',
             'fecha_aprobacion' => 'datetime',
+            'fecha_rechazo' => 'datetime',
             'fecha_entrega_real' => 'datetime',
             'fecha_devolucion_real' => 'datetime',
         ];
@@ -58,6 +62,14 @@ class Prestamo extends Model
     public function solicitante(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    /**
+     * Miembro del personal que aprobó o rechazó la solicitud.
+     */
+    public function gestionadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'gestionado_por');
     }
 
     /**
