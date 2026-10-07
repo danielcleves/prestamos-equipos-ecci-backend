@@ -21,9 +21,12 @@
         force="true" es imprescindible al ejecutar dentro de Docker.
         docker-compose.yml define DB_CONNECTION, DB_DATABASE y APP_ENV como
         variables de entorno del contenedor, y PHPUnit NO sobrescribe una
-        variable que ya existe a menos que se fuerce. Sin esto las pruebas se
-        ejecutan contra la base de datos MySQL de desarrollo y RefreshDatabase
-        borra los datos locales en cada corrida.
+        variable que ya existe a menos que se fuerce. Forzar DB_DATABASE=prestamos_test
+        garantiza que la suite se ejecute en una base de datos aislada y RefreshDatabase
+        nunca borre los datos de desarrollo (prestamos_equipos).
+
+        DB_HOST, DB_PORT, DB_USERNAME y DB_PASSWORD no se fuerzan aqui: provienen
+        del entorno del contenedor (prestamos_db:3306) o del archivo .env.
     -->
     <php>
         <env name="APP_ENV" value="testing" force="true"/>
@@ -34,8 +37,8 @@
         <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
-        <env name="DB_CONNECTION" value="sqlite" force="true"/>
-        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_CONNECTION" value="mysql" force="true"/>
+        <env name="DB_DATABASE" value="prestamos_test" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>

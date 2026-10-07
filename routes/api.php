@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EquipoController;
+use App\Http\Controllers\Api\PrestamoController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,4 +41,22 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::post('/equipos', [EquipoController::class, 'store']);
     Route::patch('/equipos/{equipo}/estado', [EquipoController::class, 'actualizarEstado']);
+});
+
+// Rutas de préstamos para personal administrativo (admin y encargado):
+// - HU-11: consulta de préstamos activos (registrada ANTES de /prestamos/{prestamo} para evitar colisión)
+// - HU-09: registro de entrega
+// - HU-11: registro de devolución
+Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+    Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
+    Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
+    Route::post('/prestamos/{prestamo}/devolucion', [PrestamoController::class, 'devolucion']);
+});
+
+// HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/prestamos', [PrestamoController::class, 'index']);
+    Route::post('/prestamos', [PrestamoController::class, 'store'])
+        ->middleware('throttle:10,1');
+    Route::get('/prestamos/{prestamo}', [PrestamoController::class, 'show']);
 });

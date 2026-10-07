@@ -12,6 +12,8 @@ class EquipoResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $disponible = $this->resource->isDisponible();
+
         return [
             'id' => $this->id,
             'codigo' => $this->codigo,
@@ -21,8 +23,14 @@ class EquipoResource extends JsonResource
                 'nombre' => $this->categoria->nombre,
             ]),
             'descripcion' => $this->descripcion,
+            'disponible' => $disponible,
+            'puede_solicitarse' => $disponible,
+            'estado_disponibilidad' => $disponible ? 'disponible' : 'no_disponible',
             'estado' => $this->estado,
-            'observaciones' => $this->observaciones,
+            'observaciones' => $this->when(
+                $request->user()?->esPersonalAdministrativo() ?? false,
+                $this->observaciones
+            ),
         ];
     }
 }

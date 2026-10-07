@@ -83,10 +83,44 @@ MySQL se publica en el `3307` para no chocar con una instalación local en el `3
 
 ```sh
 docker compose logs -f prestamos_backend                  # ver logs
-docker compose exec prestamos_backend php artisan test    # ejecutar pruebas
+docker compose exec prestamos_backend composer test       # pruebas rápidas (SQLite en memoria)
+docker compose exec prestamos_backend composer test:mysql # pruebas completas (MySQL 8.0 aislado)
 docker compose exec prestamos_backend php artisan <cmd>   # cualquier comando artisan
 docker compose restart                                    # tras un git pull con migraciones nuevas
 docker compose down                                       # bajar (conserva la base de datos)
+```
+
+## 🧪 Ejecución de pruebas
+
+El repositorio cuenta con dos modalidades de pruebas automatizadas:
+
+1. **Modo rápido — SQLite en memoria (`composer test`)**
+   - **Comando:** `docker compose exec prestamos_backend composer test`
+   - **Cuándo usarlo:** Durante el ciclo de desarrollo diario e iterativo (TDD, refactorización) para obtener retroalimentación casi instantánea.
+   - **Configuración:** Utiliza `phpunit.xml` con SQLite `:memory:`.
+
+2. **Modo completo — MySQL 8.0 aislado (`composer test:mysql`)**
+   - **Comando:** `docker compose exec prestamos_backend composer test:mysql`
+   - **Cuándo usarlo:** De forma obligatoria antes de abrir o actualizar cualquier Pull Request hacia `develop`.
+   - **Configuración:** Utiliza `phpunit.mysql.xml`, ejecutándose exclusivamente sobre la base de datos aislada `prestamos_test` para validar la compatibilidad real con MySQL 8.0 (bloqueos pesimistas `lockForUpdate()`, claves foráneas, tipos y dialecto SQL).
+   - **Salvaguarda:** Una guardia de seguridad (`GuardiaBaseDatos`) aborta la suite si la conexión es MySQL y la base de datos no termina en `_test`, garantizando que la base de desarrollo local (`prestamos_equipos`) jamás sea modificada ni truncada.
+   - ⚠️ **No admite ejecuciones simultáneas:** La suite contra MySQL usa una única base (`prestamos_test`) y la recrea al iniciar (`migrate:fresh`). Por lo tanto, **no se pueden ejecutar dos corridas de `test:mysql` al mismo tiempo** (por ejemplo, desde dos terminales distintas o mientras un agente de IA la está corriendo). Los síntomas de una ejecución paralela son errores de *"Table doesn't exist"*, *"Table definition has changed"* o *"Deadlock"* en tests que normalmente pasan.
+
+### Inicialización de la base de pruebas (`prestamos_test`)
+
+- Para contenedores inicializados desde cero (sin volumen previo), `docker/mysql/init-test-db.sh` se monta en `/docker-entrypoint-initdb.d` y crea la base de datos automáticamente al arrancar.
+- Si ya tienes el volumen de MySQL creado previamente, ejecuta una sola vez el comando correspondiente a tu terminal para aprovisionar `prestamos_test` sin reiniciar tus volúmenes (la contraseña de root se toma directamente de las variables del contenedor, sin exponerla):
+
+**En Bash / Zsh / Git Bash (Linux, macOS o Windows Git Bash):**
+
+```sh
+docker compose exec prestamos_db sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "CREATE DATABASE IF NOT EXISTS prestamos_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON prestamos_test.* TO \"$MYSQL_USER\"@\"%\"; FLUSH PRIVILEGES;"'
+```
+
+**En PowerShell (Windows PowerShell 5.1 / PowerShell 7+):**
+
+```powershell
+docker compose exec prestamos_db sh -c 'mysql -u root -p\"$MYSQL_ROOT_PASSWORD\" -e \"CREATE DATABASE IF NOT EXISTS prestamos_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON prestamos_test.* TO ''$MYSQL_USER''@''%''; FLUSH PRIVILEGES;\"'
 ```
 
 ## 🔌 Endpoints disponibles
