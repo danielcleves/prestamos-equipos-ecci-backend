@@ -104,7 +104,7 @@ class SolicitudPrestamoService
                 'usuario_id' => $solicitante->id,
                 'equipo_id' => $equipo->id,
                 'estado' => EstadoPrestamo::Solicitado,
-                'motivo' => $data['motivo'],
+                'motivo' => trim((string) $data['motivo']),
                 'fecha_solicitud' => now(),
                 'fecha_inicio' => $fechaInicio,
                 'fecha_devolucion_estimada' => $fechaDevolucionEstimada,

@@ -8,6 +8,7 @@ use App\Models\Equipo;
 use App\Models\Prestamo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Spatie\Permission\Models\Role;
 
 /**
  * @extends Factory<Prestamo>
@@ -35,12 +36,15 @@ class PrestamoFactory extends Factory
             'fecha_inicio' => $fechaInicio,
             'fecha_devolucion_estimada' => $fechaDevolucionEstimada,
             'fecha_aprobacion' => null,
+            'fecha_rechazo' => null,
             'fecha_entrega_real' => null,
             'fecha_devolucion_real' => null,
             'condicion_entrega' => null,
             'condicion_devolucion' => null,
             'entregado_por' => null,
             'recibido_por' => null,
+            'gestionado_por' => null,
+            'motivo_rechazo' => null,
             'observaciones_entrega' => null,
             'observaciones_devolucion' => null,
         ];
@@ -50,6 +54,10 @@ class PrestamoFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'estado' => EstadoPrestamo::Solicitado,
+            'fecha_aprobacion' => null,
+            'fecha_rechazo' => null,
+            'gestionado_por' => null,
+            'motivo_rechazo' => null,
         ]);
     }
 
@@ -58,6 +66,17 @@ class PrestamoFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'estado' => EstadoPrestamo::Aprobado,
             'fecha_aprobacion' => now(),
+            'gestionado_por' => $attributes['gestionado_por'] ?? $this->personal(),
+        ]);
+    }
+
+    public function rechazado(?string $motivo = null): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'estado' => EstadoPrestamo::Rechazado,
+            'fecha_rechazo' => now(),
+            'motivo_rechazo' => $motivo ?? $attributes['motivo_rechazo'] ?? 'Equipo no disponible para las fechas requeridas.',
+            'gestionado_por' => $attributes['gestionado_por'] ?? $this->personal(),
         ]);
     }
 
@@ -68,7 +87,8 @@ class PrestamoFactory extends Factory
             'fecha_aprobacion' => now()->subDay(),
             'fecha_entrega_real' => now(),
             'condicion_entrega' => CondicionEquipo::Bueno,
-            'entregado_por' => User::factory(),
+            'gestionado_por' => $attributes['gestionado_por'] ?? $this->personal(),
+            'entregado_por' => $attributes['entregado_por'] ?? $this->personal(),
             'observaciones_entrega' => 'En buen estado',
             'observaciones_devolucion' => null,
         ]);
@@ -83,10 +103,24 @@ class PrestamoFactory extends Factory
             'fecha_devolucion_real' => now(),
             'condicion_entrega' => CondicionEquipo::Bueno,
             'condicion_devolucion' => CondicionEquipo::Bueno,
-            'entregado_por' => User::factory(),
-            'recibido_por' => User::factory(),
+            'gestionado_por' => $attributes['gestionado_por'] ?? $this->personal(),
+            'entregado_por' => $attributes['entregado_por'] ?? $this->personal(),
+            'recibido_por' => $attributes['recibido_por'] ?? $this->personal(),
             'observaciones_entrega' => 'En buen estado',
             'observaciones_devolucion' => 'Devuelto a tiempo',
         ]);
+    }
+
+    /**
+     * Retorna un usuario con rol de personal (encargado).
+     */
+    protected function personal(): User
+    {
+        Role::firstOrCreate(['name' => 'encargado', 'guard_name' => 'web']);
+
+        $user = User::factory()->create();
+        $user->assignRole('encargado');
+
+        return $user;
     }
 }

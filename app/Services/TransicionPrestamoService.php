@@ -21,7 +21,8 @@ class TransicionPrestamoService
      *     actor?: User|null,
      *     fecha?: CarbonInterface|string|null,
      *     condicion?: CondicionEquipo|null,
-     *     observaciones?: string|null
+     *     observaciones?: string|null,
+     *     motivo?: string|null
      * }  $datos
      *
      * @throws ValidationException
@@ -62,12 +63,27 @@ class TransicionPrestamoService
 
     private function aplicarAprobacion(Prestamo $prestamo, array $datos): void
     {
+        if (! isset($datos['actor'])) {
+            throw new InvalidArgumentException('El actor que aprueba la solicitud es obligatorio.');
+        }
+
         $prestamo->fecha_aprobacion = $datos['fecha'] ?? now();
+        $prestamo->gestionado_por = $datos['actor']->id;
     }
 
     private function aplicarRechazo(Prestamo $prestamo, array $datos): void
     {
-        // Espacio para trazabilidad de rechazo en HU correspondiente
+        if (! isset($datos['actor'])) {
+            throw new InvalidArgumentException('El actor que rechaza la solicitud es obligatorio.');
+        }
+
+        if (! isset($datos['motivo']) || trim((string) $datos['motivo']) === '') {
+            throw new InvalidArgumentException('El motivo del rechazo es obligatorio.');
+        }
+
+        $prestamo->fecha_rechazo = $datos['fecha'] ?? now();
+        $prestamo->gestionado_por = $datos['actor']->id;
+        $prestamo->motivo_rechazo = trim((string) $datos['motivo']);
     }
 
     private function aplicarCancelacion(Prestamo $prestamo, array $datos): void

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Rules\TextoNoVacio;
 use App\Support\FechaNegocio;
 use Carbon\Carbon;
 use Closure;
@@ -31,11 +32,7 @@ class StorePrestamoRequest extends FormRequest
                 'required',
                 'string',
                 'max:1000',
-                function (string $attribute, mixed $value, Closure $fail) {
-                    if (is_string($value) && trim($value) === '') {
-                        $fail('El motivo no puede estar vacío ni contener solo espacios.');
-                    }
-                },
+                new TextoNoVacio,
             ],
             'fecha_inicio' => [
                 'required',
