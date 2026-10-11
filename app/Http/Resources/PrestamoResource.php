@@ -14,6 +14,7 @@ class PrestamoResource extends JsonResource
     public function toArray(Request $request): array
     {
         $esPersonal = $request->user()?->esPersonalAdministrativo() ?? false;
+        $esDueno = $request->user()?->id === $this->usuario_id;
 
         return [
             'id' => $this->id,
@@ -36,12 +37,19 @@ class PrestamoResource extends JsonResource
             'fecha_inicio' => FechaNegocio::formatear($this->fecha_inicio),
             'fecha_devolucion_estimada' => FechaNegocio::formatear($this->fecha_devolucion_estimada),
             'fecha_aprobacion' => FechaNegocio::formatear($this->fecha_aprobacion),
+            'fecha_rechazo' => FechaNegocio::formatear($this->fecha_rechazo),
+            'motivo_rechazo' => $this->when($esPersonal || $esDueno, $this->motivo_rechazo),
             'fecha_entrega_real' => FechaNegocio::formatear($this->fecha_entrega_real),
             'fecha_devolucion_real' => FechaNegocio::formatear($this->fecha_devolucion_real),
             'condicion_entrega' => $this->condicion_entrega?->value,
             'condicion_entrega_etiqueta' => $this->condicion_entrega?->etiqueta(),
             'condicion_devolucion' => $this->condicion_devolucion?->value,
             'condicion_devolucion_etiqueta' => $this->condicion_devolucion?->etiqueta(),
+            'gestionado_por' => $this->gestionado_por,
+            'usuario_gestion' => $this->whenLoaded('gestionadoPor', fn () => [
+                'id' => $this->gestionadoPor->id,
+                'name' => $this->gestionadoPor->name,
+            ]),
             'entregado_por' => $this->entregado_por,
             'usuario_entrega' => $this->whenLoaded('entregadoPor', fn () => [
                 'id' => $this->entregadoPor->id,

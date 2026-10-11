@@ -25,6 +25,97 @@ class TransicionPrestamoServiceTest extends TestCase
         $this->servicio = new TransicionPrestamoService;
     }
 
+    public function test_transicionar_a_aprobado_actualiza_estado_fecha_y_gestionado_por(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+        $personal = User::factory()->create();
+
+        $prestamoActualizado = $this->servicio->transicionar($prestamo, EstadoPrestamo::Aprobado, [
+            'actor' => $personal,
+        ]);
+
+        $this->assertSame(EstadoPrestamo::Aprobado, $prestamoActualizado->estado);
+        $this->assertSame($personal->id, $prestamoActualizado->gestionado_por);
+        $this->assertNotNull($prestamoActualizado->fecha_aprobacion);
+    }
+
+    public function test_aprobar_sin_actor_lanza_invalid_argument_exception(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('El actor que aprueba la solicitud es obligatorio.');
+
+        $this->servicio->transicionar($prestamo, EstadoPrestamo::Aprobado);
+    }
+
+    public function test_transicionar_a_rechazado_actualiza_estado_fecha_gestionado_por_y_motivo(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+        $personal = User::factory()->create();
+
+        $prestamoActualizado = $this->servicio->transicionar($prestamo, EstadoPrestamo::Rechazado, [
+            'actor' => $personal,
+            'motivo' => 'Equipo requerido para mantenimiento preventivo.',
+        ]);
+
+        $this->assertSame(EstadoPrestamo::Rechazado, $prestamoActualizado->estado);
+        $this->assertSame($personal->id, $prestamoActualizado->gestionado_por);
+        $this->assertSame('Equipo requerido para mantenimiento preventivo.', $prestamoActualizado->motivo_rechazo);
+        $this->assertNotNull($prestamoActualizado->fecha_rechazo);
+    }
+
+    public function test_rechazar_almacena_motivo_recortado_sin_espacios_al_inicio_ni_al_final(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+        $personal = User::factory()->create();
+
+        $prestamoActualizado = $this->servicio->transicionar($prestamo, EstadoPrestamo::Rechazado, [
+            'actor' => $personal,
+            'motivo' => "   Motivo con espacios alrededor   \n",
+        ]);
+
+        $this->assertSame('Motivo con espacios alrededor', $prestamoActualizado->motivo_rechazo);
+        $this->assertSame('Motivo con espacios alrededor', Prestamo::findOrFail($prestamo->id)->motivo_rechazo);
+    }
+
+    public function test_rechazar_sin_actor_lanza_invalid_argument_exception(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('El actor que rechaza la solicitud es obligatorio.');
+
+        $this->servicio->transicionar($prestamo, EstadoPrestamo::Rechazado, [
+            'motivo' => 'Motivo válido',
+        ]);
+    }
+
+    public function test_rechazar_sin_motivo_o_vacio_lanza_invalid_argument_exception(): void
+    {
+        $prestamo = Prestamo::factory()->solicitado()->create();
+        $personal = User::factory()->create();
+
+        try {
+            $this->servicio->transicionar($prestamo, EstadoPrestamo::Rechazado, [
+                'actor' => $personal,
+            ]);
+            $this->fail('Se esperaba InvalidArgumentException al faltar el motivo.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertSame('El motivo del rechazo es obligatorio.', $e->getMessage());
+        }
+
+        try {
+            $this->servicio->transicionar($prestamo, EstadoPrestamo::Rechazado, [
+                'actor' => $personal,
+                'motivo' => '   ',
+            ]);
+            $this->fail('Se esperaba InvalidArgumentException por motivo con solo espacios.');
+        } catch (InvalidArgumentException $e) {
+            $this->assertSame('El motivo del rechazo es obligatorio.', $e->getMessage());
+        }
+    }
+
     public function test_transicion_valida_actualiza_estado_y_columnas_correspondientes(): void
     {
         $prestamo = Prestamo::factory()->aprobado()->create();

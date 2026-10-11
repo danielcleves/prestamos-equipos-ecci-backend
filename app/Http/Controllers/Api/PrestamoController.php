@@ -6,17 +6,21 @@ use App\Enums\EstadoPrestamo;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DevolucionPrestamoRequest;
 use App\Http\Requests\Api\EntregaPrestamoRequest;
+use App\Http\Requests\Api\RechazoPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
 use App\Models\User;
+use App\Services\AprobacionPrestamoService;
 use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
+use App\Services\RechazoPrestamoService;
 use App\Services\SolicitudPrestamoService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class PrestamoController extends Controller
 {
@@ -24,15 +28,30 @@ class PrestamoController extends Controller
      * Lista los préstamos según el rol:
      * - usuario común: únicamente sus propios préstamos.
      * - admin y encargado: todos los préstamos.
+     *
+     * Soporta filtro opcional por ?estado=.
      */
     public function index(Request $request): JsonResponse
     {
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $query = Prestamo::with(['equipo.categoria', 'solicitante', 'entregadoPor', 'recibidoPor']);
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO);
 
         if (! $request->user()->esPersonalAdministrativo()) {
             $query->where('usuario_id', $request->user()->id);
+        }
+
+        if ($request->has('estado')) {
+            $estadoParam = $request->query('estado');
+            if ($estadoParam !== null && $estadoParam !== '') {
+                $estado = EstadoPrestamo::tryFrom($estadoParam);
+                if (! $estado) {
+                    throw ValidationException::withMessages([
+                        'estado' => ['El estado especificado no es válido.'],
+                    ]);
+                }
+                $query->where('estado', $estado->value);
+            }
         }
 
         $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
@@ -56,7 +75,7 @@ class PrestamoController extends Controller
     {
         $perPage = max(1, min($request->integer('per_page', 15), 100));
 
-        $query = Prestamo::with(['equipo.categoria', 'solicitante', 'entregadoPor'])
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
             ->where('estado', EstadoPrestamo::Entregado->value);
 
         if ($request->filled('buscar')) {
@@ -95,25 +114,54 @@ class PrestamoController extends Controller
         $prestamo = $service->solicitar($request->user(), $request->validated());
 
         return response()->json([
-            'data' => new PrestamoResource($prestamo->load(['equipo.categoria', 'solicitante'])),
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
         ], 201);
     }
 
     /**
      * Consulta el detalle de un préstamo puntual.
-     * Protegido por PrestamoPolicy: el solicitante solo puede ver el suyo; personal administrativo ve cualquiera.
+     * Protegido por asegurarVisibilidad: el solicitante solo puede ver el suyo; personal administrativo ve cualquiera.
      */
     public function show(Request $request, Prestamo $prestamo): JsonResponse
     {
         $this->asegurarVisibilidad($request->user(), $prestamo);
 
         return response()->json([
-            'data' => new PrestamoResource($prestamo->load([
-                'equipo.categoria',
-                'solicitante',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-08: Aprueba una solicitud de préstamo (solo personal autorizado: admin y encargado).
+     */
+    public function aprobacion(
+        Request $request,
+        Prestamo $prestamo,
+        AprobacionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->aprobar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-08: Rechaza una solicitud de préstamo con motivo obligatorio (solo personal autorizado).
+     */
+    public function rechazo(
+        RechazoPrestamoRequest $request,
+        Prestamo $prestamo,
+        RechazoPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->rechazar(
+            $prestamo,
+            $request->user(),
+            $request->validated('motivo')
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -132,11 +180,7 @@ class PrestamoController extends Controller
         );
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'entregadoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
@@ -155,12 +199,7 @@ class PrestamoController extends Controller
         );
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load([
-                'equipo.categoria',
-                'solicitante',
-                'entregadoPor',
-                'recibidoPor',
-            ])),
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 
