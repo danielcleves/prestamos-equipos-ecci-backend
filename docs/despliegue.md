@@ -48,6 +48,8 @@ Crear **New → Web Service → Docker** por cada repo. Para empezar basta con l
 | `APP_ENV` | `production` |
 | `APP_DEBUG` | `false` |
 | `APP_URL` | `https://<backend>.onrender.com` |
+| `APP_LOCALE` | `es` |
+| `APP_FALLBACK_LOCALE` | `en` |
 | `PORT` | `8000` |
 | `LOG_CHANNEL` | `stderr` |
 | `DB_CONNECTION` | `mysql` |
@@ -58,9 +60,9 @@ Crear **New → Web Service → Docker** por cada repo. Para empezar basta con l
 
 Y en **Secret Files** subir `ca.pem` (Render lo monta en `/etc/secrets/ca.pem`).
 
-> Importante: el backend reutiliza el `Dockerfile` de desarrollo, que parte de
-> `.env.example`. Cualquier variable que **no** se defina en Render toma el valor de
-> `.env.example` (por ejemplo `APP_DEBUG=true`), así que hay que definir todas las de la tabla.
+> Importante: cuando `APP_KEY` llega como variable de entorno, el contenedor no crea `.env`:
+> cualquier variable que **no** se defina en Render toma el valor por defecto de `config/`
+> (por ejemplo `APP_ENV=production` y `APP_LOCALE=en`), así que hay que definir todas las de la tabla.
 
 ### Variables de entorno — frontend
 
