@@ -1,0 +1,128 @@
+# CI/CD del backend.
+#
+# - Pull request hacia develop o main: corre las pruebas (no despliega).
+# - Push a develop o main (incluye el merge de un PR): corre las pruebas y, si
+#   pasan, dispara el deploy hook de Render del entorno de esa rama.
+#
+# El auto-deploy de Render debe estar DESACTIVADO: el unico que despliega es
+# este workflow, y solo despues de que las pruebas pasen.
+#
+# Secretos del repositorio (Settings > Secrets and variables > Actions):
+#   RENDER_DEPLOY_HOOK_DEVELOP  deploy hook del servicio que sigue a develop
+#   RENDER_DEPLOY_HOOK_MAIN     deploy hook del servicio que sigue a main
+# Si un secreto no existe, el despliegue de esa rama se omite con un aviso.
+
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# Un push nuevo a un PR cancela la corrida anterior; en develop/main no se
+# cancela nada para no cortar un despliegue a medias.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    name: Pruebas (PHPUnit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # MySQL igual al de docker-compose.yml, para correr la suite tambien contra
+    # el motor que se usa en produccion (Aiven).
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: prestamos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: mbstring, pdo_sqlite, pdo_mysql, bcmath, gd, zip, exif
+          coverage: none
+
+      - name: Cache de Composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Instalar dependencias PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # La vista welcome usa @vite: sin el manifest la prueba de "/" fallaria.
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Compilar assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Preparar .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+
+      - name: Pruebas con SQLite en memoria (phpunit.xml)
+        run: composer test
+
+      # phpunit.mysql.xml fuerza DB_CONNECTION=mysql y DB_DATABASE=prestamos_test;
+      # host y credenciales salen del entorno, que tiene prioridad sobre el .env.
+      - name: Pruebas con MySQL (phpunit.mysql.xml)
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: composer test:mysql
+
+  desplegar:
+    name: Desplegar en Render (${{ github.ref_name }})
+    needs: pruebas
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref_name == 'develop' || github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Deja el historial de despliegues visible en la pestana "Environments" de GitHub.
+    environment: ${{ github.ref_name == 'main' && 'produccion' || 'develop' }}
+
+    steps:
+      - name: Disparar deploy hook
+        env:
+          HOOK: ${{ github.ref_name == 'main' && secrets.RENDER_DEPLOY_HOOK_MAIN || secrets.RENDER_DEPLOY_HOOK_DEVELOP }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::warning::No hay deploy hook configurado para '${GITHUB_REF_NAME}'. Se omite el despliegue."
+            exit 0
+          fi
+          # ref= le pide a Render desplegar exactamente el commit que paso las pruebas.
+          curl --fail-with-body --silent --show-error -X POST "${HOOK}&ref=${GITHUB_SHA}"
+          echo
+          echo "Despliegue solicitado a Render para ${GITHUB_SHA::7} (${GITHUB_REF_NAME})."
