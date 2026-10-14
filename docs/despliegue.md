@@ -80,6 +80,12 @@ ya viene por defecto en el `Dockerfile` del frontend.
 En cada servicio de Render: **Settings → Deploy Hook → copiar URL**.
 En cada repo de GitHub: **Settings → Secrets and variables → Actions → New repository secret**:
 
+> Requiere permiso de **admin** del repo. Como los repos son personales de
+> `danielcleves`, solo el dueño puede crear secretos (a un colaborador GitHub solo
+> le permite read o write). Quien configure Render le envía las URLs de los hooks
+> **por privado** y él las carga. No publicar los hooks: con la URL cualquiera
+> puede disparar un despliegue.
+
 | Secreto | Valor |
 |---|---|
 | `RENDER_DEPLOY_HOOK_DEVELOP` | deploy hook del servicio de `develop` |
@@ -102,9 +108,16 @@ No usar `db:seed` sin `--class`: `DatabaseSeeder` crea un usuario de prueba.
 
 ## 5. Proteger las ramas (recomendado)
 
+Igual que los secretos, requiere permiso de **admin**: lo configura el dueño del repo.
+
 **Settings → Branches → Add rule** para `develop` y `main`:
 "Require status checks to pass before merging" → marcar **Pruebas (PHPUnit)**.
 Así un PR con pruebas rotas no se puede fusionar.
+
+> El workflow ignora los cambios que solo tocan documentación (`**.md`, `docs/**`).
+> Si **Pruebas (PHPUnit)** se marca como check obligatorio, un PR que solo cambie
+> documentación queda esperando ese check y no se puede fusionar: en ese caso el
+> dueño puede fusionarlo saltando la regla, o no marcar el check como obligatorio.
 
 ## Notas del plan gratuito
 

@@ -11,14 +11,24 @@
 #   RENDER_DEPLOY_HOOK_DEVELOP  deploy hook del servicio que sigue a develop
 #   RENDER_DEPLOY_HOOK_MAIN     deploy hook del servicio que sigue a main
 # Si un secreto no existe, el despliegue de esa rama se omite con un aviso.
+#
+# Los cambios que solo tocan documentacion (*.md, docs/) no disparan el workflow.
+# Las actions se fijan por SHA de commit (la version va en el comentario) para
+# que un tag movido no cambie el codigo que corre en el pipeline.
 
 name: CI/CD
 
 on:
   pull_request:
     branches: [develop, main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   push:
     branches: [develop, main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   workflow_dispatch:
 
 # Un push nuevo a un PR cancela la corrida anterior; en develop/main no se
@@ -53,17 +63,17 @@ jobs:
           --health-retries=20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Instalar PHP 8.3
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.3"
           extensions: mbstring, pdo_sqlite, pdo_mysql, bcmath, gd, zip, exif
           coverage: none
 
       - name: Cache de Composer
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.composer/cache/files
           key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
@@ -74,7 +84,7 @@ jobs:
 
       # La vista welcome usa @vite: sin el manifest la prueba de "/" fallaria.
       - name: Instalar Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
