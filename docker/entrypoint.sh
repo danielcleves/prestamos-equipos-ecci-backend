@@ -12,13 +12,17 @@ fi
 
 # 2. Archivo de entorno. Las variables de docker-compose tienen prioridad sobre
 #    el .env (Laravel usa Dotenv immutable), pero APP_KEY debe vivir en el archivo.
-if [ ! -f .env ]; then
+#    Si APP_KEY ya llega como variable de entorno (Render), no se crea .env:
+#    con un .env presente, "artisan serve" no pasa a sus procesos hijos las
+#    variables que tambien estan en el archivo, y las peticiones terminarian
+#    usando los valores de .env.example (DB_HOST=prestamos_db).
+if [ -z "$APP_KEY" ] && [ ! -f .env ]; then
     echo "[entrypoint] .env ausente: copiando desde .env.example..."
     cp .env.example .env
 fi
 
-# 3. Clave de aplicacion.
-if ! grep -qE '^APP_KEY=base64:.+' .env; then
+# 3. Clave de aplicacion (solo cuando se usa el archivo .env).
+if [ -f .env ] && ! grep -qE '^APP_KEY=base64:.+' .env; then
     echo "[entrypoint] Generando APP_KEY..."
     php artisan key:generate --no-interaction --force
 fi
