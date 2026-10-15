@@ -74,7 +74,7 @@ class StorePrestamoRequest extends FormRequest
                     }
 
                     $maxDias = (int) config('prestamos.duracion_maxima_dias', 7);
-                    if ($devolucion->greaterThan($inicio->copy()->addDays($maxDias))) {
+                    if ($devolucion->greaterThan($inicio->copy()->addDays($maxDias)->endOfDay())) {
                         $fail("La fecha de devolución estimada no puede superar los {$maxDias} días posteriores a la fecha de inicio.");
                     }
                 },

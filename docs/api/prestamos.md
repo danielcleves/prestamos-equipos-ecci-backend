@@ -40,7 +40,7 @@ Permite a cualquier usuario autenticado solicitar un equipo que se encuentre dis
 | `equipo_id` | entero | Sí | Debe existir en la tabla `equipos`. |
 | `motivo` | string | Sí | Máx. 1000 caracteres. No puede estar vacío ni contener solo espacios. |
 | `fecha_inicio` | datetime | Sí | Fecha con hora válida. Debe ser igual o posterior al momento actual. |
-| `fecha_devolucion_estimada` | datetime | Sí | Fecha con hora válida, posterior a `fecha_inicio`, sin superar los días máximos configurados (`config('prestamos.duracion_maxima_dias')`, por defecto 7 días). |
+| `fecha_devolucion_estimada` | datetime | Sí | Fecha con hora válida, posterior a `fecha_inicio`, sin superar los días máximos configurados (`config('prestamos.duracion_maxima_dias')`, por defecto 7 días). El límite se cuenta hasta el **fin del día** (23:59:59) del último día permitido: con inicio el 15/10 a las 08:00, la devolución se acepta hasta el 22/10 a las 23:59:59. |
 
 > [!NOTE]
 > Los campos `usuario_id`, `estado` y `fecha_solicitud` son asignados exclusivamente por el servidor (`usuario_id = auth()->id()`, `estado = 'solicitado'`, `fecha_solicitud = now()`). Cualquier valor enviado por el cliente es ignorado.
