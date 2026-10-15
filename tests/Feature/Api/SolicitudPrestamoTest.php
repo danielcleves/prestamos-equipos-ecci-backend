@@ -235,6 +235,27 @@ class SolicitudPrestamoTest extends TestCase
         );
     }
 
+    public function test_acepta_solicitud_en_limite_de_duracion_maxima_dias_hasta_fin_del_dia(): void
+    {
+        $usuario = User::factory()->create();
+        $usuario->assignRole('usuario');
+        $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
+
+        // Mismo escenario real del front: inicio a las 08:00 y devolución a las 18:00 del 7.º día posterior
+        $fechaInicio = now()->addDay()->setTime(8, 0, 0);
+        $fechaDevolucion = (clone $fechaInicio)->addDays(7)->setTime(18, 0, 0);
+
+        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
+            'equipo_id' => $equipo->id,
+            'motivo' => 'Uso académico para proyecto final',
+            'fecha_inicio' => $fechaInicio->format('Y-m-d H:i:s'),
+            'fecha_devolucion_estimada' => $fechaDevolucion->format('Y-m-d H:i:s'),
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.estado', 'solicitado');
+    }
+
     public function test_rechaza_solicitud_cuando_se_cruzan_las_fechas_con_otro_prestamo(): void
     {
         $usuario1 = User::factory()->create();
