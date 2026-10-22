@@ -182,7 +182,7 @@ feature/* ──► trabajo del desarrollador
 2. El desarrollador solicita el PR hacia `develop`. El **Líder Técnico hace el code review técnico** (conflictos, buenas prácticas, tests) y lo aprueba para que entre a `develop`.
 3. Una vez aprobado el code review, el PR se fusiona a `develop`. Es ahí donde **QA hace la validación funcional**, probando el código ya integrado junto a las demás features.
 4. Cuando QA valida todo en `develop`, se hace el merge de `develop` → `main`.
-5. **DevOps** despliega la aplicación desde `main`.
+5. El merge a `main` dispara el pipeline de CI/CD, que prueba y despliega a producción automáticamente. **DevOps** mantiene el pipeline y la infraestructura.
 
 ### Code review y validación funcional
 
@@ -200,6 +200,30 @@ Cada salto de nivel requiere la aprobación del rol correspondiente:
 - `feature/* → develop`: aprueba el **Líder Técnico** (code review técnico) y **QA** valida funcionalmente lo integrado en `develop`.
 - `develop → main`: aprueba **QA** (validación funcional) y lo ejecuta **DevOps**.
 
+## 🚢 CI/CD y despliegue
+
+Cada PR y cada push a `develop` o `main` pasan por el pipeline de GitHub Actions
+(`.github/workflows/ci-cd.yml`):
+
+```
+PR hacia develop/main ──► Pruebas PHPUnit ──► ✔/✘ en el PR (no despliega)
+merge a develop/main  ──► Pruebas PHPUnit ──(pasan)──► despliegue automático en Render
+```
+
+Si las pruebas fallan, no se despliega nada. Los cambios que solo tocan documentación
+(`**.md`, `docs/**`) no disparan el pipeline.
+
+| Ambiente | Rama | URL |
+|---|---|---|
+| Desarrollo / QA | `develop` | Frontend: <https://prestamos-ecci-frontend-dev.onrender.com> · API: <https://prestamos-ecci-backend-dev.onrender.com/api/ping> |
+| Producción | `main` | pendiente |
+
+Los servicios usan el plan gratuito de Render: si nadie los usa en ~15 minutos se
+duermen y la primera carga tarda ~1 minuto.
+
+📖 Guía completa (cómo funciona el pipeline, montaje de Render y Aiven, solución de
+problemas): [`docs/despliegue.md`](docs/despliegue.md)
+
 ## 📁 Estructura del proyecto
 
 ```
@@ -207,6 +231,8 @@ app/                  Lógica de la aplicación (controllers, models, services)
 routes/               Definición de rutas y endpoints de la API
 database/             Migraciones, seeds y factories
 docs/api/             Documentación detallada de la API (endpoints, ejemplos, cómo probar)
+docs/despliegue.md    Guía de CI/CD y despliegue (GitHub Actions + Render + Aiven)
+.github/workflows/    Pipeline de CI/CD (pruebas + despliegue)
 config/               Configuración del framework
 public/               Punto de entrada pública (index.php)
 tests/                Pruebas automáticas
