@@ -472,64 +472,84 @@ class SolicitudPrestamoTest extends TestCase
 
     public function test_interpreta_fechas_sin_desplazamiento_en_hora_de_bogota_y_almacena_en_utc(): void
     {
-        $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
-        $equipo = Equipo::factory()->create();
+        // El congelado del reloj es necesario porque StorePrestamoRequest rechaza fechas de inicio pasadas:
+        // sin él la prueba deja de ser válida en cuanto "2026-10-15 08:00" queda en el pasado.
+        Carbon::setTestNow(Carbon::parse('2026-10-15 07:00:00', 'America/Bogota'));
 
-        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
-            'equipo_id' => $equipo->id,
-            'motivo' => 'Préstamo para pruebas de zona horaria',
-            'fecha_inicio' => '2026-10-15 08:00:00',
-            'fecha_devolucion_estimada' => '2026-10-16 18:00:00',
-        ]);
+        try {
+            $usuario = User::factory()->create();
+            $usuario->assignRole('usuario');
+            $equipo = Equipo::factory()->create();
 
-        $response->assertStatus(201)
-            ->assertJsonPath('data.fecha_inicio', '2026-10-15T08:00:00-05:00')
-            ->assertJsonPath('data.fecha_devolucion_estimada', '2026-10-16T18:00:00-05:00');
+            $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
+                'equipo_id' => $equipo->id,
+                'motivo' => 'Préstamo para pruebas de zona horaria',
+                'fecha_inicio' => '2026-10-15 08:00:00',
+                'fecha_devolucion_estimada' => '2026-10-16 18:00:00',
+            ]);
 
-        $prestamo = Prestamo::latest('id')->firstOrFail();
-        $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
-        $this->assertSame('2026-10-16 23:00:00', $prestamo->fecha_devolucion_estimada->format('Y-m-d H:i:s'));
+            $response->assertStatus(201)
+                ->assertJsonPath('data.fecha_inicio', '2026-10-15T08:00:00-05:00')
+                ->assertJsonPath('data.fecha_devolucion_estimada', '2026-10-16T18:00:00-05:00');
+
+            $prestamo = Prestamo::latest('id')->firstOrFail();
+            $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
+            $this->assertSame('2026-10-16 23:00:00', $prestamo->fecha_devolucion_estimada->format('Y-m-d H:i:s'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_interpreta_formato_iso_sin_desplazamiento_como_hora_de_bogota(): void
     {
-        $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
-        $equipo = Equipo::factory()->create();
+        Carbon::setTestNow(Carbon::parse('2026-10-15 07:00:00', 'America/Bogota'));
 
-        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
-            'equipo_id' => $equipo->id,
-            'motivo' => 'Préstamo con formato Y-m-d\TH:i',
-            'fecha_inicio' => '2026-10-15T08:00',
-            'fecha_devolucion_estimada' => '2026-10-16T18:00',
-        ]);
+        try {
+            $usuario = User::factory()->create();
+            $usuario->assignRole('usuario');
+            $equipo = Equipo::factory()->create();
 
-        $response->assertStatus(201)
-            ->assertJsonPath('data.fecha_inicio', '2026-10-15T08:00:00-05:00')
-            ->assertJsonPath('data.fecha_devolucion_estimada', '2026-10-16T18:00:00-05:00');
+            $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
+                'equipo_id' => $equipo->id,
+                'motivo' => 'Préstamo con formato Y-m-d\TH:i',
+                'fecha_inicio' => '2026-10-15T08:00',
+                'fecha_devolucion_estimada' => '2026-10-16T18:00',
+            ]);
 
-        $prestamo = Prestamo::latest('id')->firstOrFail();
-        $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
+            $response->assertStatus(201)
+                ->assertJsonPath('data.fecha_inicio', '2026-10-15T08:00:00-05:00')
+                ->assertJsonPath('data.fecha_devolucion_estimada', '2026-10-16T18:00:00-05:00');
+
+            $prestamo = Prestamo::latest('id')->firstOrFail();
+            $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_interpreta_formato_con_desplazamiento_explicito_y_almacena_mismo_instante_utc(): void
     {
-        $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
-        $equipo = Equipo::factory()->create();
+        Carbon::setTestNow(Carbon::parse('2026-10-15 07:00:00', 'America/Bogota'));
 
-        $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
-            'equipo_id' => $equipo->id,
-            'motivo' => 'Préstamo con offset -05:00',
-            'fecha_inicio' => '2026-10-15T08:00:00-05:00',
-            'fecha_devolucion_estimada' => '2026-10-16T18:00:00-05:00',
-        ]);
+        try {
+            $usuario = User::factory()->create();
+            $usuario->assignRole('usuario');
+            $equipo = Equipo::factory()->create();
 
-        $response->assertStatus(201);
+            $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
+                'equipo_id' => $equipo->id,
+                'motivo' => 'Préstamo con offset -05:00',
+                'fecha_inicio' => '2026-10-15T08:00:00-05:00',
+                'fecha_devolucion_estimada' => '2026-10-16T18:00:00-05:00',
+            ]);
 
-        $prestamo = Prestamo::latest('id')->firstOrFail();
-        $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
+            $response->assertStatus(201);
+
+            $prestamo = Prestamo::latest('id')->firstOrFail();
+            $this->assertSame('2026-10-15 13:00:00', $prestamo->fecha_inicio->format('Y-m-d H:i:s'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_regression_evaluacion_de_fechas_a_las_14_horas_bogota(): void
