@@ -222,10 +222,13 @@ docker-compose.yml    Servicios del entorno: backend + MySQL
 | Emmanuel Valencia | Product Owner / Analista de Negocio / Gestor del Proyecto / Delivery Manager | [Emm2704](https://github.com/Emm2704) |
 | Daniel Cleves | Líder Técnico | [danielcleves](https://github.com/danielcleves) |
 | Alejandro Molina | UX/UI Designer | [AlejoMolina09](https://github.com/AlejoMolina09) |
-| Jose López (Kota) | Desarrollo Frontend | [kotaErn650](https://github.com/kotaErn650) |
-| José David | Desarrollo Backend | [JoseMedina-prog](https://github.com/JoseMedina-prog) |
-| Sebastián Rodríguez | QA y Automatización de Pruebas | [SebasRCam](https://github.com/SebasRCam) |
+| Juan Hernández | Desarrollo Backend | [Jestehdz](https://github.com/Jestehdz) |
+| Julian Gonzalez | Desarrollo Frontend | [juliangonzalezR](https://github.com/juliangonzalezR) |
+| Johan Gonzalez | QA y Automatización de Pruebas | [Johangc12](https://github.com/Johangc12) |
 | Victor Marín | DevOps, Despliegue y Observabilidad | [V53M](https://github.com/V53M) |
+
+Integrantes de iteraciones anteriores, sin acceso de escritura: José David Medina (backend),
+Jose López —Kota— (frontend) y Sebastián Rodríguez (QA).
 
 ## 📄 Licencia
 
