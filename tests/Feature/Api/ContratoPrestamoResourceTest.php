@@ -239,9 +239,11 @@ class ContratoPrestamoResourceTest extends TestCase
         $this->assertCount(10, $resIndex->json('data'));
 
         // Con 10 préstamos y eager loading estricto, las consultas deben ser constantes e independientes del número de filas:
-        // 1 (conteo total paginación) + 1 (prestamos) + 1 (equipos) + 1 (categorias) + 1 (solicitante) + 1 (gestionadoPor) + 1 (entregadoPor) + 1 (recibidoPor) = 8 consultas.
-        // Si hubiera N+1, dispararía al menos 10 * 5 = 50 consultas.
-        $this->assertLessThanOrEqual(9, $consultasIndex, "GET /api/prestamos ejecutó {$consultasIndex} consultas (posible N+1).");
+        // 1 (autenticación del token) + 1 (conteo total paginación) + 1 (prestamos) + 1 (equipos) + 1 (categorias)
+        // + 1 (solicitante) + 1 (gestionadoPor) + 1 (entregadoPor) + 1 (recibidoPor) + 1 (revision, HU-12) = 10 consultas.
+        // El umbral acota el crecimiento por relación nueva; lo que detecta es el N+1, que con 10 filas
+        // dispararía al menos 10 * 6 = 60 consultas.
+        $this->assertLessThanOrEqual(10, $consultasIndex, "GET /api/prestamos ejecutó {$consultasIndex} consultas (posible N+1).");
 
         // Medir número de consultas en activos
         $consultasActivos = 0;
@@ -253,6 +255,6 @@ class ContratoPrestamoResourceTest extends TestCase
         $resActivos->assertStatus(200);
         $this->assertCount(10, $resActivos->json('data'));
 
-        $this->assertLessThanOrEqual(9, $consultasActivos, "GET /api/prestamos/activos ejecutó {$consultasActivos} consultas (posible N+1).");
+        $this->assertLessThanOrEqual(10, $consultasActivos, "GET /api/prestamos/activos ejecutó {$consultasActivos} consultas (posible N+1).");
     }
 }

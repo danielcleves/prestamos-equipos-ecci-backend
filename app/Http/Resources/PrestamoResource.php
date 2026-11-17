@@ -60,6 +60,14 @@ class PrestamoResource extends JsonResource
                 'id' => $this->recibidoPor->id,
                 'name' => $this->recibidoPor->name,
             ]),
+            // HU-12: revisión del equipo en la devolución. La clave está siempre
+            // presente (null mientras no haya revisión) porque 'revision' va en
+            // RELACIONES_RECURSO y se carga en todas las respuestas.
+            'revision' => $this->whenLoaded(
+                'revision',
+                fn () => $this->revision ? new RevisionEquipoResource($this->revision) : null,
+                null
+            ),
             'observaciones_entrega' => $this->when($esPersonal, $this->observaciones_entrega),
             'observaciones_devolucion' => $this->when($esPersonal, $this->observaciones_devolucion),
             'created_at' => FechaNegocio::formatear($this->created_at),

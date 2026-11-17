@@ -62,6 +62,17 @@ enum EstadoPrestamo: string
     }
 
     /**
+     * Mensaje estándar para una transición no permitida.
+     * Centralizado aquí para que cualquier punto que valide la transición
+     * antes de ejecutarla (ej. el orquestador de la devolución en HU-12)
+     * produzca exactamente el mismo mensaje que TransicionPrestamoService.
+     */
+    public function mensajeTransicionInvalida(self $destino): string
+    {
+        return "El préstamo está en estado {$this->etiqueta()} y no puede pasar a {$destino->etiqueta()}.";
+    }
+
+    /**
      * Determina si el estado actual es un estado final.
      */
     public function isFinal(): bool

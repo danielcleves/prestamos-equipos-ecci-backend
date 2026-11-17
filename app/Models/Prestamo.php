@@ -50,6 +50,11 @@ class Prestamo extends Model
         'gestionadoPor',
         'entregadoPor',
         'recibidoPor',
+        // HU-12: se carga siempre para que la clave 'revision' exista en todas
+        // las respuestas (nula mientras no haya revisión), igual que el resto
+        // del contrato. Sin relación anidada a proposito: el revisor añadiría
+        // una consulta al presupuesto del listado.
+        'revision',
     ];
 
     /**
