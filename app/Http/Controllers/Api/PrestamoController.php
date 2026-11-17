@@ -29,12 +29,12 @@ class PrestamoController extends Controller
      * - usuario común: únicamente sus propios préstamos.
      * - admin y encargado: todos los préstamos.
      *
-     * Soporta filtro opcional por ?estado=.
+     * Filtros opcionales, acumulables entre sí y con el filtro por usuario:
+     * - ?estado=   un estado exacto del enum EstadoPrestamo.
+     * - ?activos=  1 solo los préstamos vivos, 0 solo los cerrados (HU-10).
      */
     public function index(Request $request): JsonResponse
     {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Prestamo::with(Prestamo::RELACIONES_RECURSO);
 
         if (! $request->user()->esPersonalAdministrativo()) {
@@ -54,17 +54,36 @@ class PrestamoController extends Controller
             }
         }
 
-        $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
+        // HU-10: ?activos=1 deja solo los préstamos vivos (solicitado,
+        // aprobado, entregado); ?activos=0 solo los cerrados. Se combina con
+        // ?estado= y con el filtro por usuario como un AND más, igual que los
+        // filtros de /api/equipos: pedir estado=devuelto&activos=1 devuelve
+        // lista vacía, porque devuelto nunca es activo.
+        if ($request->filled('activos')) {
+            $request->boolean('activos')
+                ? $query->whereIn('estado', EstadoPrestamo::valoresActivos())
+                : $query->whereNotIn('estado', EstadoPrestamo::valoresActivos());
+        }
 
-        return response()->json([
-            'data' => PrestamoResource::collection($prestamos),
-            'meta' => [
-                'current_page' => $prestamos->currentPage(),
-                'last_page' => $prestamos->lastPage(),
-                'per_page' => $prestamos->perPage(),
-                'total' => $prestamos->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($query->latest('id'), $request);
+    }
+
+    /**
+     * HU-07: Lista las solicitudes pendientes de gestión (estado 'solicitado'),
+     * de la más antigua a la más reciente: es el orden en que deben atenderse.
+     *
+     * El detalle de cada solicitud sigue saliendo por GET /prestamos/{prestamo}.
+     */
+    public function pendientes(Request $request): JsonResponse
+    {
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
+            ->where('estado', EstadoPrestamo::Solicitado->value)
+            // Desempate por id: varias solicitudes pueden caer en el mismo
+            // segundo y fecha_solicitud no alcanza a distinguirlas.
+            ->orderBy('fecha_solicitud')
+            ->orderBy('id');
+
+        return $this->respuestaPaginada($query, $request);
     }
 
     /**
@@ -73,8 +92,6 @@ class PrestamoController extends Controller
      */
     public function activos(Request $request): JsonResponse
     {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
             ->where('estado', EstadoPrestamo::Entregado->value);
 
@@ -93,7 +110,24 @@ class PrestamoController extends Controller
             });
         }
 
-        $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
+        return $this->respuestaPaginada($query->latest('id'), $request);
+    }
+
+    /**
+     * Construye la respuesta paginada estándar del módulo: per_page acotado a
+     * [1, 100] con default 15, y el mismo bloque 'meta' en todos los listados.
+     *
+     * El max() evita que un per_page de 0 o negativo llegue a paginate():
+     * MySQL rechaza un LIMIT negativo con un 500, y con 0 el paginator
+     * devuelve meta.last_page = 0.
+     *
+     * @param  Builder<Prestamo>  $query
+     */
+    private function respuestaPaginada(Builder $query, Request $request): JsonResponse
+    {
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
+
+        $prestamos = $query->paginate($perPage)->withQueryString();
 
         return response()->json([
             'data' => PrestamoResource::collection($prestamos),

@@ -57,6 +57,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 // - HU-11: registro de devolución
 Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
     Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
+    // HU-07: solicitudes pendientes de gestion. Igual que /activos, va
+    // registrada ANTES de /prestamos/{prestamo} para que 'pendientes' no se
+    // interprete como un id.
+    Route::get('/prestamos/pendientes', [PrestamoController::class, 'pendientes']);
     Route::post('/prestamos/{prestamo}/aprobacion', [PrestamoController::class, 'aprobacion']);
     Route::post('/prestamos/{prestamo}/rechazo', [PrestamoController::class, 'rechazo']);
     Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
