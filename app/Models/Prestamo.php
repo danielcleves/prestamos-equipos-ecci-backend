@@ -46,7 +46,13 @@ class Prestamo extends Model
      */
     public const RELACIONES_RECURSO = [
         'equipo.categoria',
-        'solicitante',
+        // solicitante.roles y no solo 'solicitante': PrestamoResource expone
+        // los roles del solicitante al personal con getRoleNames(), que sin
+        // esta carga anticipada dispara una consulta por fila (N+1). No se
+        // notaba mientras todas las filas compartían solicitante; con un
+        // solicitante distinto por fila, como en el listado de solicitudes
+        // pendientes (HU-07), son N consultas extra.
+        'solicitante.roles',
         'gestionadoPor',
         'entregadoPor',
         'recibidoPor',
