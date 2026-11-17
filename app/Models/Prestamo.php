@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'usuario_id',
@@ -108,6 +109,16 @@ class Prestamo extends Model
     public function recibidoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recibido_por');
+    }
+
+    /**
+     * HU-12: revisión del estado del equipo registrada en la devolución.
+     * hasOne y no hasMany: la unicidad de prestamo_id está garantizada por la
+     * base de datos (una sola revisión por préstamo).
+     */
+    public function revision(): HasOne
+    {
+        return $this->hasOne(RevisionEquipo::class, 'prestamo_id');
     }
 
     /**

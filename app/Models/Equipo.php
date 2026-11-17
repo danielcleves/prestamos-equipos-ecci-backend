@@ -125,6 +125,16 @@ class Equipo extends Model
         return $this->belongsTo(Categoria::class);
     }
 
+    /**
+     * HU-12: revisiones de devolucion del equipo, mas recientes primero.
+     * Igual que historialEstados, se ordena por id y no por fecha: varias
+     * revisiones pueden caer en el mismo segundo y la fecha no las distingue.
+     */
+    public function revisiones(): HasMany
+    {
+        return $this->hasMany(RevisionEquipo::class, 'equipo_id')->latest('id');
+    }
+
     public function historialEstados(): HasMany
     {
         // latest('id') en vez de latest(): varios cambios de estado pueden
