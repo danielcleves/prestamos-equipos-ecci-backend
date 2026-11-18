@@ -180,6 +180,48 @@ Si el equipo se encuentra `dado_de_baja` y se consulta con token de rol `usuario
 }
 ```
 
+## `GET /api/equipos/{equipo}/revisiones` (HU-12)
+
+Revisiones de devolución del equipo, más recientes primero. **Exclusivo de
+`admin` y `encargado`**: a diferencia de `/historial`, las observaciones de la
+revisión son reservadas al personal.
+
+| Parámetro | Tipo | Notas |
+|---|---|---|
+| `per_page` | entero | Acotado a `[1, 100]`, default 15 |
+| `con_danos` | booleano | Opcional. `1` solo revisiones con novedad, `0` solo las que volvieron en buen estado |
+
+```json
+{
+  "data": [
+    {
+      "id": 7,
+      "prestamo_id": 42,
+      "equipo_id": 3,
+      "condicion": "con_danos",
+      "condicion_etiqueta": "Con daños",
+      "tiene_danos": true,
+      "observaciones": "Tapa agrietada",
+      "revisado_por": 2,
+      "fecha_revision": "2026-11-17T16:30:00-05:00",
+      "incidencia_id": null
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+- `incidencia_id` queda reservado para la HU-31 y es `null` mientras no existan
+  incidencias.
+- Las revisiones **se conservan después de cerrado el préstamo**: son la
+  trazabilidad que alimenta la gestión de incidencias.
+- Rol `usuario` → `403`; sin token → `401`; equipo inexistente → `404`.
+
 ## Pendiente
 
 - Filtrar el catálogo por disponibilidad (HU-05).

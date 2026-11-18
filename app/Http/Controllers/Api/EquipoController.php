@@ -8,6 +8,7 @@ use App\Http\Requests\Api\StoreEquipoRequest;
 use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
 use App\Http\Resources\HistorialEstadoResource;
+use App\Http\Resources\RevisionEquipoResource;
 use App\Models\Equipo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -94,6 +95,39 @@ class EquipoController extends Controller
                 'last_page' => $historial->lastPage(),
                 'per_page' => $historial->perPage(),
                 'total' => $historial->total(),
+            ],
+        ]);
+    }
+
+    /**
+     * HU-12 / KAN-130: revisiones de devolución del equipo, más recientes
+     * primero. Endpoint propio y exclusivo de personal administrativo: no se
+     * suma a /historial porque ese sí lo consulta cualquier autenticado y las
+     * observaciones de la revisión son reservadas.
+     *
+     * Las revisiones se conservan después de cerrado el préstamo: son la
+     * trazabilidad que alimenta la HU-31 (incidencias).
+     */
+    public function revisiones(Request $request, Equipo $equipo): JsonResponse
+    {
+        $perPage = max(1, min($request->integer('per_page', 15), 100));
+
+        $query = $equipo->revisiones()->getQuery();
+
+        // Filtro opcional para aislar las devoluciones con novedad.
+        if ($request->filled('con_danos')) {
+            $query->where('tiene_danos', $request->boolean('con_danos'));
+        }
+
+        $revisiones = $query->paginate($perPage)->withQueryString();
+
+        return response()->json([
+            'data' => RevisionEquipoResource::collection($revisiones),
+            'meta' => [
+                'current_page' => $revisiones->currentPage(),
+                'last_page' => $revisiones->lastPage(),
+                'per_page' => $revisiones->perPage(),
+                'total' => $revisiones->total(),
             ],
         ]);
     }

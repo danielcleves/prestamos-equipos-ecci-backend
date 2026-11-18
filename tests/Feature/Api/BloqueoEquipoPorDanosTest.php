@@ -10,6 +10,7 @@ use App\Models\RevisionEquipo;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -74,7 +75,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_una_condicion_con_novedad_deja_el_equipo_en_mantenimiento(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -83,7 +84,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $this->assertFalse($equipo->isDisponible());
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_un_equipo_en_mantenimiento_no_puede_solicitarse(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -112,7 +113,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         ]);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_un_equipo_en_mantenimiento_no_vuelve_solo_a_disponible(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -132,7 +133,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $this->assertSame(Equipo::ESTADO_MANTENIMIENTO, $equipo->fresh()->estado);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_un_equipo_en_mantenimiento_no_aparece_entre_los_disponibles(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -150,7 +151,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $this->assertNotContains($equipo->id, $ids);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_un_encargado_no_puede_liberar_el_equipo_bloqueado(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -165,7 +166,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $this->assertSame(Equipo::ESTADO_MANTENIMIENTO, $equipo->fresh()->estado);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_un_admin_libera_el_equipo_y_vuelve_a_ser_solicitable(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);
@@ -214,7 +215,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         ])->assertStatus(201);
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('condicionesConNovedad')]
+    #[DataProvider('condicionesConNovedad')]
     public function test_el_bloqueo_queda_justificado_por_la_revision_registrada(CondicionEquipo $condicion): void
     {
         $equipo = $this->devolverCon($condicion);

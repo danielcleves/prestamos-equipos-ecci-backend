@@ -36,6 +36,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/equipos/{equipo}/historial', [EquipoController::class, 'historial']);
 });
 
+// HU-12: revisiones de devolucion de un equipo, exclusivas del personal
+// administrativo (las observaciones de la revision son reservadas, a
+// diferencia de /historial, que ve cualquier autenticado).
+Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+    Route::get('/equipos/{equipo}/revisiones', [EquipoController::class, 'revisiones']);
+});
+
 // Escritura sobre el catalogo, exclusiva de admin: registrar (HU-03) y
 // cambiar el estado (HU-04).
 Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {

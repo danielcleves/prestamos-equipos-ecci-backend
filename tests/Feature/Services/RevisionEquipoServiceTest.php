@@ -12,6 +12,7 @@ use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -159,7 +160,7 @@ class RevisionEquipoServiceTest extends TestCase
         ];
     }
 
-    #[\PHPUnit\Framework\Attributes\DataProvider('estadosNoEntregados')]
+    #[DataProvider('estadosNoEntregados')]
     public function test_rechaza_si_el_prestamo_no_esta_entregado(string $estado): void
     {
         $encargado = $this->personal();
