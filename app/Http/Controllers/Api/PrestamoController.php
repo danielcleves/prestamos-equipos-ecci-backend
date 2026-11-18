@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EstadoPrestamo;
+use App\Http\Controllers\Concerns\RespuestaPaginada;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DevolucionPrestamoRequest;
 use App\Http\Requests\Api\EntregaPrestamoRequest;
@@ -24,6 +25,8 @@ use Illuminate\Validation\ValidationException;
 
 class PrestamoController extends Controller
 {
+    use RespuestaPaginada;
+
     /**
      * Lista los préstamos según el rol:
      * - usuario común: únicamente sus propios préstamos.
@@ -60,12 +63,23 @@ class PrestamoController extends Controller
         // filtros de /api/equipos: pedir estado=devuelto&activos=1 devuelve
         // lista vacía, porque devuelto nunca es activo.
         if ($request->filled('activos')) {
-            $request->boolean('activos')
+            // Igual que ?estado=, un valor no reconocido es un error del
+            // cliente y no se adivina la intención: antes cualquier texto caía
+            // en false y devolvía los préstamos cerrados sin avisar.
+            $activos = filter_var($request->query('activos'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($activos === null) {
+                throw ValidationException::withMessages([
+                    'activos' => ['El parámetro activos solo acepta 1, 0, true o false.'],
+                ]);
+            }
+
+            $activos
                 ? $query->whereIn('estado', EstadoPrestamo::valoresActivos())
                 : $query->whereNotIn('estado', EstadoPrestamo::valoresActivos());
         }
 
-        return $this->respuestaPaginada($query->latest('id'), $request);
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
     }
 
     /**
@@ -83,7 +97,7 @@ class PrestamoController extends Controller
             ->orderBy('fecha_solicitud')
             ->orderBy('id');
 
-        return $this->respuestaPaginada($query, $request);
+        return $this->respuestaPaginada($query, $request, PrestamoResource::class);
     }
 
     /**
@@ -110,34 +124,7 @@ class PrestamoController extends Controller
             });
         }
 
-        return $this->respuestaPaginada($query->latest('id'), $request);
-    }
-
-    /**
-     * Construye la respuesta paginada estándar del módulo: per_page acotado a
-     * [1, 100] con default 15, y el mismo bloque 'meta' en todos los listados.
-     *
-     * El max() evita que un per_page de 0 o negativo llegue a paginate():
-     * MySQL rechaza un LIMIT negativo con un 500, y con 0 el paginator
-     * devuelve meta.last_page = 0.
-     *
-     * @param  Builder<Prestamo>  $query
-     */
-    private function respuestaPaginada(Builder $query, Request $request): JsonResponse
-    {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
-        $prestamos = $query->paginate($perPage)->withQueryString();
-
-        return response()->json([
-            'data' => PrestamoResource::collection($prestamos),
-            'meta' => [
-                'current_page' => $prestamos->currentPage(),
-                'last_page' => $prestamos->lastPage(),
-                'per_page' => $prestamos->perPage(),
-                'total' => $prestamos->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
     }
 
     /**

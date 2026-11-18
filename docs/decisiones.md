@@ -227,10 +227,27 @@ Ver `docs/api/equipos.md` para el contrato del endpoint de revisiones.
   (con desempate por `id`), al revés que `GET /api/prestamos`. El criterio es
   el orden de atención: primero la solicitud que lleva más tiempo esperando.
 
-- **Respuesta paginada unificada:** el bloque que arma `data` + `meta` estaba
-  repetido en `index()` y `activos()`. Se extrajo a
-  `PrestamoController::respuestaPaginada()` y lo usan los tres listados, para
-  que `per_page` se acote igual en todos.
+- **Respuesta paginada unificada (ampliado en review):** el bloque que arma
+  `data` + `meta` estaba repetido en `index()` y `activos()`, y también en
+  `EquipoController` (catálogo, historial y revisiones) y en `UserController`.
+  Al revisar la HU-12 se extrajo al trait
+  `App\Http\Controllers\Concerns\RespuestaPaginada`, que usan los siete listados
+  paginados: `per_page` se acota igual en todos y el bloque `meta` ya no se
+  puede escribir dos veces distinto.
+
+- **`?activos=` valida su valor (corregido en el review de la HU-10):** antes
+  cualquier texto distinto de `1/0/true/false` caía en `false` y devolvía los
+  préstamos **cerrados** sin avisar, mientras un `?estado=` inválido sí
+  respondía 422. Ahora un valor no booleano responde **422
+  (`errors.activos`)**: adivinar la intención esconde errores del cliente. Se
+  conservan las formas booleanas habituales (`1`, `0`, `true`, `false`, `on`,
+  `off`, `yes`, `no`) y `?activos=` vacío sigue sin filtrar.
+
+- **Un solo bloqueo del préstamo en la devolución (ajustado en review):** la
+  devolución bloqueaba la fila de `prestamos` tres veces en la misma
+  transacción (orquestador, revisión y transición). `RevisionEquipoService::registrar()`
+  acepta ahora la fila ya bloqueada por el llamador, así que se ahorra un
+  `SELECT ... FOR UPDATE` sin cambiar el orden de bloqueo ni la semántica.
 
 - **N+1 corregido en `PrestamoResource` (hallado al implementar KAN-105):**
   el recurso expone los roles del solicitante con `getRoleNames()`, que

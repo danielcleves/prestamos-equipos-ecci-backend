@@ -250,9 +250,9 @@ Efecto: se crea el préstamo en `solicitado` con `fecha_solicitud = now()`.
 - **Destino del equipo según la condición:**
   `bueno → disponible`; cualquier otra → `mantenimiento`.
 - **Se crea la revisión del equipo (HU-12)** en la misma transacción, antes de
-  la transición de estado. Ver 5.10.
+  la transición de estado. Ver 5.6.
 
-### 5.9bis Revisión del equipo en la devolución (HU-12)
+### 5.6 Revisión del equipo en la devolución (HU-12)
 
 La revisión es una entidad propia, `revisiones_equipo`, y la **fuente de verdad
 de la revisión física** del equipo al devolverlo. La crea
@@ -287,7 +287,7 @@ otra migración.
 > debe pasar por `DevolucionPrestamoService`, nunca actualizar esas columnas a
 > mano. Ver `docs/decisiones.md`.
 
-### 5.10 Consulta de revisiones (HU-12 / KAN-130)
+### 5.7 Consulta de revisiones (HU-12 / KAN-130)
 
 | Endpoint | Rol | Notas |
 |---|---|---|
@@ -301,7 +301,7 @@ Las revisiones **se conservan después de cerrado el préstamo** y a lo largo de
 varios ciclos de préstamo del mismo equipo: son la trazabilidad que alimenta la
 gestión de incidencias.
 
-### 5.6 Consulta de préstamos
+### 5.8 Consulta de préstamos
 
 | Endpoint | Rol | Reglas |
 |---|---|---|
@@ -323,14 +323,18 @@ gestión de incidencias.
 > vigentes". Ver `docs/decisiones.md`.
 
 `?estado=`, `?activos=` y el filtro por usuario se acumulan como **AND**: una
-combinación contradictoria da lista vacía, no un error.
+combinación contradictoria da lista vacía, no un error. Un valor no reconocido
+en cualquiera de los dos responde **422** (`errors.estado` / `errors.activos`):
+no se adivina la intención del cliente.
 
-Paginación uniforme en todo el proyecto: `per_page` acotado a `[1, 100]`,
-default 15, y un bloque `meta` con `current_page / last_page / per_page / total`.
-El `max(1, ...)` es deliberado: un `per_page` de 0 o negativo rompía MySQL con
-un 500.
+Paginación uniforme en todo el proyecto [RespuestaPaginada](../app/Http/Controllers/Concerns/RespuestaPaginada.php):
+`per_page` acotado a `[1, 100]`, default 15, y un bloque `meta` con
+`current_page / last_page / per_page / total`. Los siete listados paginados
+(préstamos, pendientes, activos, equipos, historial, revisiones y usuarios) usan
+el mismo trait, así que el contrato no puede divergir. El `max(1, ...)` es
+deliberado: un `per_page` de 0 o negativo rompía MySQL con un 500.
 
-### 5.7 Catálogo de equipos
+### 5.9 Catálogo de equipos
 
 | Endpoint | Rol | Notas |
 |---|---|---|
@@ -348,7 +352,7 @@ SQLite y MySQL a la vez. El mismo escapado se repite en
 El historial se ordena por `latest('id')`, no por `created_at`: varios cambios
 de estado pueden caer en el mismo segundo y el timestamp no los distingue.
 
-### 5.8 Gestión de usuarios
+### 5.10 Gestión de usuarios
 
 Todo bajo `admin`. `GET/POST/PUT /api/usuarios`, `GET /api/usuarios/{id}`,
 `PATCH /api/usuarios/{id}/activar` y `/desactivar`. **Sin `destroy`**: los
@@ -361,7 +365,7 @@ usuarios no se borran, se desactivan.
   sin forma de revertirlo, porque `is_active` solo se cambia desde un endpoint
   que exige ser admin activo.
 
-### 5.9 Autenticación
+### 5.11 Autenticación
 
 `POST /api/login` (`throttle:6,1` por IP), `POST /api/logout`, `GET /api/me`.
 Tokens personales de Sanctum.
@@ -489,6 +493,7 @@ Las violaciones de regla de negocio se expresan como `ValidationException`
 | Auditoría | [EquipoObserver.php](../app/Observers/EquipoObserver.php) |
 | Fechas | [FechaNegocio.php](../app/Support/FechaNegocio.php) |
 | Serialización + visibilidad | [app/Http/Resources/](../app/Http/Resources/) |
+| Forma de las respuestas paginadas | [RespuestaPaginada.php](../app/Http/Controllers/Concerns/RespuestaPaginada.php) |
 | Errores centralizados | [bootstrap/app.php](../bootstrap/app.php), [lang/es/errores.php](../lang/es/errores.php) |
 | Rutas y autorización | [routes/api.php](../routes/api.php) |
 
@@ -534,18 +539,18 @@ explícitamente diferido:
 4. **Evidencias** (fotos/URLs de condición en entrega y devolución). Decididas
    como "incluir", sin implementar. Hoy solo hay `observaciones` en texto —
    `revisiones_equipo` sería el lugar natural donde colgarlas.
-4b. **Incidencias (HU-31).** `revisiones_equipo.incidencia_id` ya existe,
+5. **Incidencias (HU-31).** `revisiones_equipo.incidencia_id` ya existe,
    indexado y sin FK, esperando la tabla. Al crearla, añadir la foreign key.
-5. **Permisos granulares.** La matriz `equipos.*` / `prestamos.*` sigue siendo
+6. **Permisos granulares.** La matriz `equipos.*` / `prestamos.*` sigue siendo
    propuesta sin validar, y está desactualizada (referencia `unidades_equipo`,
    que ya se descartó). Hoy todo es autorización por rol.
-6. **CRUD de categorías.** No existe; se siembran tres fijas.
-7. **Mantenimientos** (tabla propia) — diferido por el PO a baja prioridad.
+7. **CRUD de categorías.** No existe; se siembran tres fijas.
+8. **Mantenimientos** (tabla propia) — diferido por el PO a baja prioridad.
    Hoy `mantenimiento` es solo un estado del equipo.
-8. **Lista de espera** — pendiente de consultar con el cliente.
-9. **Campos de préstamo diferidos:** descripción del préstamo, número de
-   inventario interno, duración en horas (hoy solo días), y tratamiento de
-   pérdida o falla.
+9. **Lista de espera** — pendiente de consultar con el cliente.
+10. **Campos de préstamo diferidos:** descripción del préstamo, número de
+    inventario interno, duración en horas (hoy solo días), y tratamiento de
+    pérdida o falla.
 
 ## 10. Cómo validar cambios
 

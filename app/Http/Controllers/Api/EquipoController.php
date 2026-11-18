@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RespuestaPaginada;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\IndexEquipoRequest;
 use App\Http\Requests\Api\StoreEquipoRequest;
@@ -17,12 +18,10 @@ use Illuminate\Http\Request;
 
 class EquipoController extends Controller
 {
+    use RespuestaPaginada;
+
     public function index(IndexEquipoRequest $request): JsonResponse
     {
-        // max() evita que un per_page negativo o 0 llegue a paginate() (ver
-        // el mismo arreglo en UserController::index, senalado en review).
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Equipo::with('categoria')
             ->when(! Equipo::puedeVerDadosDeBaja($request->user()), fn ($q) => $q->visiblesEnCatalogo())
             ->when($request->filled('categoria_id'), fn ($q) => $q->where('categoria_id', $request->integer('categoria_id')))
@@ -41,17 +40,7 @@ class EquipoController extends Controller
             default => $query->orderBy('nombre')->orderBy('id'),
         };
 
-        $equipos = $query->paginate($perPage)->withQueryString();
-
-        return response()->json([
-            'data' => EquipoResource::collection($equipos),
-            'meta' => [
-                'current_page' => $equipos->currentPage(),
-                'last_page' => $equipos->lastPage(),
-                'per_page' => $equipos->perPage(),
-                'total' => $equipos->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($query, $request, EquipoResource::class);
     }
 
     public function store(StoreEquipoRequest $request): JsonResponse
@@ -84,19 +73,9 @@ class EquipoController extends Controller
     {
         $this->asegurarVisibilidad($request->user(), $equipo);
 
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
+        $historial = $equipo->historialEstados()->with('usuario');
 
-        $historial = $equipo->historialEstados()->with('usuario')->paginate($perPage);
-
-        return response()->json([
-            'data' => HistorialEstadoResource::collection($historial),
-            'meta' => [
-                'current_page' => $historial->currentPage(),
-                'last_page' => $historial->lastPage(),
-                'per_page' => $historial->perPage(),
-                'total' => $historial->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($historial, $request, HistorialEstadoResource::class);
     }
 
     /**
@@ -110,26 +89,14 @@ class EquipoController extends Controller
      */
     public function revisiones(Request $request, Equipo $equipo): JsonResponse
     {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
-        $query = $equipo->revisiones()->getQuery();
+        $revisiones = $equipo->revisiones();
 
         // Filtro opcional para aislar las devoluciones con novedad.
         if ($request->filled('con_danos')) {
-            $query->where('tiene_danos', $request->boolean('con_danos'));
+            $revisiones->where('tiene_danos', $request->boolean('con_danos'));
         }
 
-        $revisiones = $query->paginate($perPage)->withQueryString();
-
-        return response()->json([
-            'data' => RevisionEquipoResource::collection($revisiones),
-            'meta' => [
-                'current_page' => $revisiones->currentPage(),
-                'last_page' => $revisiones->lastPage(),
-                'per_page' => $revisiones->perPage(),
-                'total' => $revisiones->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($revisiones, $request, RevisionEquipoResource::class);
     }
 
     private function asegurarVisibilidad(?User $user, Equipo $equipo): void

@@ -87,11 +87,13 @@ class DevolucionPrestamoService
             // transacción, antes de la transición de estado: RevisionEquipoService
             // exige que el préstamo esté todavía en 'entregado' (en proceso de
             // devolución). Si la revisión falla, la devolución entera se revierte.
-            $this->revisionService->registrar($prestamo, $personal, [
+            // Se le pasa la fila ya bloqueada arriba para no repetir el
+            // SELECT ... FOR UPDATE de la misma fila.
+            $this->revisionService->registrar($prestamoActual, $personal, [
                 'condicion' => $condicion,
                 'observaciones' => $datos['observaciones'] ?? null,
                 'fecha_revision' => $fechaDevolucion,
-            ]);
+            ], $prestamoActual);
 
             // 4. Transición del préstamo (TransicionPrestamoService bloquea el préstamo en segundo lugar)
             // Se debe usar la instancia fresca retornada por el servicio

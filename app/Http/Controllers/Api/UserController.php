@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RespuestaPaginada;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreUserRequest;
 use App\Http\Requests\Api\UpdateUserRequest;
@@ -12,24 +13,13 @@ use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
+    use RespuestaPaginada;
+
     public function index(Request $request): JsonResponse
     {
-        // max() evita que un per_page negativo o 0 llegue a paginate() (MySQL
-        // rechaza LIMIT negativos con un 500, y con 0 el paginator devuelve
-        // meta.last_page = 0). min() sigue topando por arriba.
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
+        $usuarios = User::with('roles')->orderBy('name');
 
-        $usuarios = User::with('roles')->orderBy('name')->paginate($perPage);
-
-        return response()->json([
-            'data' => UserResource::collection($usuarios),
-            'meta' => [
-                'current_page' => $usuarios->currentPage(),
-                'last_page' => $usuarios->lastPage(),
-                'per_page' => $usuarios->perPage(),
-                'total' => $usuarios->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($usuarios, $request, UserResource::class);
     }
 
     public function store(StoreUserRequest $request): JsonResponse

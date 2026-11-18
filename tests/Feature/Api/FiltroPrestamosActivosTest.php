@@ -275,6 +275,32 @@ class FiltroPrestamosActivosTest extends TestCase
             ->assertJsonValidationErrors(['estado']);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function valoresNoBooleanos(): array
+    {
+        return [
+            'texto' => ['quizas'],
+            'numero fuera de 0/1' => ['2'],
+            'simbolo' => ['%'],
+        ];
+    }
+
+    #[DataProvider('valoresNoBooleanos')]
+    public function test_un_valor_invalido_de_activos_da_422(string $valor): void
+    {
+        $usuario = $this->solicitante();
+        $this->unoDeCadaEstado($usuario);
+
+        // Antes cualquier texto caía en false y devolvía los cerrados sin
+        // avisar; ahora responde igual que un ?estado= inválido.
+        $this->actingAs($usuario, 'sanctum')
+            ->getJson('/api/prestamos?activos='.urlencode($valor))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['activos']);
+    }
+
     public function test_el_filtro_convive_con_la_paginacion(): void
     {
         $usuario = $this->solicitante();

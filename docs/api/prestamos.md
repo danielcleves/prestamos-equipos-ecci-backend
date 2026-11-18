@@ -142,7 +142,7 @@ Lista paginada de préstamos:
 | Parámetro | Tipo | Descripción |
 |---|---|---|
 | `estado` | string | Filtra por estado del préstamo: `solicitado`, `aprobado`, `rechazado`, `entregado`, `devuelto`, `cancelado`. Si se envía un valor no soportado, responde con **HTTP 422** (`errors.estado`). Si viene vacío, no aplica filtro. |
-| `activos` | booleano | **HU-10.** `1` devuelve solo los préstamos activos; `0` solo los cerrados. Si viene vacío, no aplica filtro. |
+| `activos` | booleano | **HU-10.** `1` devuelve solo los préstamos activos; `0` solo los cerrados. Si viene vacío, no aplica filtro. Un valor que no sea booleano (`quizas`, `2`) responde **HTTP 422** (`errors.activos`), igual que un `estado` inválido. |
 | `per_page` | entero | Entero de 1 a 100 (por defecto 15). |
 
 ### Qué cuenta como préstamo "activo"
@@ -171,6 +171,7 @@ ignora ninguno en silencio:
 | `?estado=devuelto&activos=1` | **Lista vacía**, porque `devuelto` nunca es activo. No es un error |
 | `?estado=entregado&activos=0` | **Lista vacía**, por el mismo motivo a la inversa |
 | `?estado=inventado&activos=1` | **HTTP 422** (`errors.estado`): el estado inválido se valida igual |
+| `?activos=quizas` | **HTTP 422** (`errors.activos`): tampoco se adivina un booleano |
 
 El filtro por usuario lo impone el servidor: enviar `usuario_id` o parámetros
 similares en la query string **no** permite ver préstamos ajenos.

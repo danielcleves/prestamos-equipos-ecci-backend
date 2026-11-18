@@ -24,7 +24,7 @@ use Illuminate\Validation\ValidationException;
 class RevisionEquipoService
 {
     /**
-     * Registra la revision de un prestamo en proceso de devolucion.
+     * Registra la revisión de un prestamo en proceso de devolucion.
      *
      * Se llama ANTES de que TransicionPrestamoService mueva el prestamo a
      * 'devuelto', por eso el estado esperado es 'entregado'.
@@ -34,12 +34,17 @@ class RevisionEquipoService
      *     observaciones?: string|null,
      *     fecha_revision?: CarbonInterface|string|null
      * }  $datos
+     * @param  Prestamo|null  $bloqueado  Fila del prestamo que el llamador ya
+     *                                    bloqueo con lockForUpdate() dentro de
+     *                                    su transaccion. Cuando se pasa, se usa
+     *                                    tal cual y se evita un segundo SELECT
+     *                                    ... FOR UPDATE de la misma fila.
      *
      * @throws ValidationException
      */
-    public function registrar(Prestamo $prestamo, User $personal, array $datos): RevisionEquipo
+    public function registrar(Prestamo $prestamo, User $personal, array $datos, ?Prestamo $bloqueado = null): RevisionEquipo
     {
-        return DB::transaction(function () use ($prestamo, $personal, $datos) {
+        return DB::transaction(function () use ($prestamo, $personal, $datos, $bloqueado) {
             // El actor debe ser personal administrativo (admin o encargado).
             // Las rutas ya lo filtran con el middleware 'role:admin|encargado',
             // pero el servicio no asume que siempre se le llame desde HTTP.
@@ -54,7 +59,8 @@ class RevisionEquipoService
             // aqui solo se recarga el prestamo en ultimo lugar.
             // Nota: lockForUpdate() no bloquea en SQLite (las carreras de
             // concurrencia solo se reproducen en MySQL 8.0).
-            $prestamoFresco = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->first();
+            $prestamoFresco = $bloqueado
+                ?? Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->first();
 
             if ($prestamoFresco === null) {
                 throw ValidationException::withMessages([
