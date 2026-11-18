@@ -174,6 +174,77 @@ Decisiones adoptadas en esta rama:
 
 Ver `docs/api/equipos.md` para el contrato del endpoint de revisiones.
 
+## Consulta de solicitudes y préstamos (HU-07 y HU-10)
+
+- **Definición de préstamo "activo" (cerrado en esta rama, KAN-119):**
+  `solicitado`, `aprobado` y `entregado`. Son los estados en que el préstamo
+  sigue vivo y compromete al solicitante y al equipo. `rechazado`, `cancelado`
+  y `devuelto` **nunca** son activos: son finales, liberan cupo y dejan el
+  equipo libre.
+
+  La definición vive en **`EstadoPrestamo::activos()`** (con
+  `valoresActivos()` y `esActivo()`), y es la **fuente única**: la consumen
+  tanto el cupo `max_activos_por_usuario` en `SolicitudPrestamoService` —que
+  antes repetía la lista a mano, dos veces— como el filtro `?activos=` del
+  listado. Así no pueden divergir.
+
+  Se eligió este conjunto porque es el que ya aplicaba de hecho el cupo por
+  usuario desde la HU-06; `docs/decisiones.md` lo mencionaba pero nunca
+  enumeraba los estados.
+
+- **⚠️ "Activo" tiene dos alcances distintos en la API, a propósito:**
+
+  | Dónde | Qué incluye |
+  |---|---|
+  | `?activos=1` en `GET /api/prestamos` | `solicitado` + `aprobado` + `entregado` |
+  | `GET /api/prestamos/activos` (HU-11) | solo `entregado` |
+
+  El endpoint de la HU-11 responde a "qué equipos están ahora mismo fuera, en
+  manos de alguien", mientras que el filtro de la HU-10 responde a "qué
+  préstamos míos siguen vigentes", que para el solicitante incluye los que
+  todavía espera que le aprueben o le entreguen. Se mantienen separados
+  porque responden preguntas distintas, pero **queda documentado en
+  `docs/api/prestamos.md`** para que nadie asuma que son equivalentes. Si en
+  el futuro molesta, lo que habría que cambiar es el nombre del endpoint de la
+  HU-11, no la definición del enum.
+
+- **Combinación de filtros (cerrado, KAN-119):** `?estado=`, `?activos=` y el
+  filtro automático por usuario se acumulan como **AND**, igual que los
+  filtros de `/api/equipos`. Una combinación contradictoria
+  (`?estado=devuelto&activos=1`) devuelve **lista vacía**, no un error: es
+  predecible y no añade casos especiales. Un `?estado=` inválido sigue dando
+  422 aunque venga acompañado de `?activos=`. Se descartó dar prioridad a uno
+  de los dos, porque ignorar en silencio un parámetro que el cliente envió
+  esconde errores.
+
+- **HU-10 no necesitó endpoint nuevo (KAN-118):** `GET /api/prestamos` ya
+  filtraba por `usuario_id` cuando quien consulta no es personal, y
+  `PrestamoResource` ya exponía equipo, `fecha_entrega_real`,
+  `fecha_devolucion_estimada` y estado. La tarea se cubrió solo con pruebas.
+
+- **Orden de las solicitudes pendientes (cerrado, KAN-104):**
+  `GET /api/prestamos/pendientes` ordena por `fecha_solicitud` **ascendente**
+  (con desempate por `id`), al revés que `GET /api/prestamos`. El criterio es
+  el orden de atención: primero la solicitud que lleva más tiempo esperando.
+
+- **Respuesta paginada unificada:** el bloque que arma `data` + `meta` estaba
+  repetido en `index()` y `activos()`. Se extrajo a
+  `PrestamoController::respuestaPaginada()` y lo usan los tres listados, para
+  que `per_page` se acote igual en todos.
+
+- **N+1 corregido en `PrestamoResource` (hallado al implementar KAN-105):**
+  el recurso expone los roles del solicitante con `getRoleNames()`, que
+  disparaba **una consulta por fila**. No se notaba porque las pruebas
+  existentes usaban un único solicitante para todas las filas, y el eager
+  loading comparte la instancia; con un solicitante distinto por fila —el caso
+  normal en el listado de solicitudes pendientes— eran N consultas extra. La
+  corrección es cargar `solicitante.roles` en
+  `Prestamo::RELACIONES_RECURSO`, lo que sustituye N consultas por una
+  constante. **Al añadir campos de relación a `PrestamoResource`, revisar
+  siempre que la relación esté en `RELACIONES_RECURSO`.**
+
+Ver `docs/api/prestamos.md` secciones 3 y 7b para el contrato completo.
+
 ## Estrategia de pruebas y doble motor: SQLite y MySQL 8.0
 
 - **Ejecución por defecto en SQLite (`composer test`):** Los tests corren por defecto en SQLite en memoria (`:memory:`) mediante `phpunit.xml`. Su objetivo es brindar ciclos de retroalimentación rápidos durante el desarrollo local e iterativo.

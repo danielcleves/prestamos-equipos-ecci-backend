@@ -305,9 +305,25 @@ gestión de incidencias.
 
 | Endpoint | Rol | Reglas |
 |---|---|---|
-| `GET /api/prestamos` | cualquiera | El `usuario` común ve **solo los suyos** (filtro forzado por `usuario_id`); el personal ve todos. Filtro opcional `?estado=`, valor inválido → 422 |
+| `GET /api/prestamos` | cualquiera | El `usuario` común ve **solo los suyos** (filtro forzado por `usuario_id`); el personal ve todos. Filtros `?estado=` (inválido → 422) y `?activos=` |
 | `GET /api/prestamos/{id}` | cualquiera | El solicitante solo ve el propio; un préstamo ajeno responde **404** (no 403), para no filtrar su existencia |
+| `GET /api/prestamos/pendientes` | `admin\|encargado` | Solicitudes en `solicitado`, **de la más antigua a la más reciente** (orden de atención) — HU-07 |
 | `GET /api/prestamos/activos` | `admin\|encargado` | Préstamos en `entregado`, con búsqueda `?buscar=` por código/nombre de equipo o nombre/email del solicitante |
+
+### Qué es un préstamo "activo" (HU-10)
+
+`solicitado`, `aprobado` y `entregado`. Los finales —`rechazado`, `cancelado`,
+`devuelto`— nunca lo son. La definición vive en
+[EstadoPrestamo::activos()](../app/Enums/EstadoPrestamo.php) y es la **fuente
+única**: la consumen el cupo `max_activos_por_usuario` y el filtro `?activos=`.
+
+> **Ojo con el nombre.** `?activos=1` (3 estados) **no** es lo mismo que el
+> endpoint `/prestamos/activos` (solo `entregado`). El endpoint responde "qué
+> equipos están fuera ahora mismo"; el filtro, "qué préstamos míos siguen
+> vigentes". Ver `docs/decisiones.md`.
+
+`?estado=`, `?activos=` y el filtro por usuario se acumulan como **AND**: una
+combinación contradictoria da lista vacía, no un error.
 
 Paginación uniforme en todo el proyecto: `per_page` acotado a `[1, 100]`,
 default 15, y un bloque `meta` con `current_page / last_page / per_page / total`.
@@ -492,10 +508,10 @@ que `activos` se interpretara como un id.
 | HU-04 | Cambio de estado + historial | Implementada |
 | HU-05 | Catálogo con filtros y búsqueda | Implementada |
 | HU-06 | Solicitud y consulta de préstamos | Implementada |
-| HU-07 | — | No referenciada en el código |
+| HU-07 | Consulta de solicitudes pendientes | Implementada |
 | HU-08 | Aprobación y rechazo | Implementada |
 | HU-09 | Registro de entrega | Implementada |
-| HU-10 | — | No referenciada en el código |
+| HU-10 | Consulta de préstamos propios y filtro de activos | Implementada |
 | HU-11 | Préstamos activos + devolución | Implementada |
 | HU-12 | Revisión del equipo en la devolución | Implementada |
 | HU-31 | Incidencias | No implementada — `revisiones_equipo.incidencia_id` queda reservado |

@@ -41,11 +41,9 @@ class SolicitudPrestamoService
             // Evaluado tras bloquear al solicitante para garantizar datos frescos y consistencia concurrente.
             $maxActivos = (int) config('prestamos.max_activos_por_usuario', 3);
             $activosUsuario = Prestamo::where('usuario_id', $solicitante->id)
-                ->whereIn('estado', [
-                    EstadoPrestamo::Solicitado->value,
-                    EstadoPrestamo::Aprobado->value,
-                    EstadoPrestamo::Entregado->value,
-                ])
+                // Fuente única de qué cuenta como activo, compartida con el
+                // filtro ?activos= del listado (HU-10).
+                ->whereIn('estado', EstadoPrestamo::valoresActivos())
                 ->count();
 
             if ($activosUsuario >= $maxActivos) {
@@ -83,11 +81,8 @@ class SolicitudPrestamoService
 
             // 5. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
             $hayCruce = Prestamo::where('equipo_id', $equipo->id)
-                ->whereIn('estado', [
-                    EstadoPrestamo::Solicitado->value,
-                    EstadoPrestamo::Aprobado->value,
-                    EstadoPrestamo::Entregado->value,
-                ])
+                // Solo los préstamos activos bloquean el calendario del equipo.
+                ->whereIn('estado', EstadoPrestamo::valoresActivos())
                 ->where('fecha_inicio', '<', $fechaDevolucionEstimada)
                 ->where('fecha_devolucion_estimada', '>', $fechaInicio)
                 ->exists();
