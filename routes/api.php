@@ -43,13 +43,21 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::patch('/equipos/{equipo}/estado', [EquipoController::class, 'actualizarEstado']);
 });
 
-// Rutas de préstamos para personal administrativo (admin y encargado):
+// Rutas para personal administrativo (admin y encargado). Comparten
+// middleware, así que van en un solo grupo:
+// - HU-12: revisiones de devolución de un equipo (las observaciones son
+//   reservadas, a diferencia de /historial, que ve cualquier autenticado).
 // - HU-11: consulta de préstamos activos (registrada ANTES de /prestamos/{prestamo} para evitar colisión)
 // - HU-08: aprobación y rechazo de solicitudes
 // - HU-09: registro de entrega
 // - HU-11: registro de devolución
 Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+    Route::get('/equipos/{equipo}/revisiones', [EquipoController::class, 'revisiones']);
     Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
+    // HU-07: solicitudes pendientes de gestion. Igual que /activos, va
+    // registrada ANTES de /prestamos/{prestamo} para que 'pendientes' no se
+    // interprete como un id.
+    Route::get('/prestamos/pendientes', [PrestamoController::class, 'pendientes']);
     Route::post('/prestamos/{prestamo}/aprobacion', [PrestamoController::class, 'aprobacion']);
     Route::post('/prestamos/{prestamo}/rechazo', [PrestamoController::class, 'rechazo']);
     Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);

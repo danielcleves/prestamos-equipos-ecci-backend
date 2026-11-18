@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\EstadoPrestamo;
+use App\Http\Controllers\Concerns\RespuestaPaginada;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\DevolucionPrestamoRequest;
 use App\Http\Requests\Api\EntregaPrestamoRequest;
@@ -24,17 +25,19 @@ use Illuminate\Validation\ValidationException;
 
 class PrestamoController extends Controller
 {
+    use RespuestaPaginada;
+
     /**
      * Lista los préstamos según el rol:
      * - usuario común: únicamente sus propios préstamos.
      * - admin y encargado: todos los préstamos.
      *
-     * Soporta filtro opcional por ?estado=.
+     * Filtros opcionales, acumulables entre sí y con el filtro por usuario:
+     * - ?estado=   un estado exacto del enum EstadoPrestamo.
+     * - ?activos=  1 solo los préstamos vivos, 0 solo los cerrados (HU-10).
      */
     public function index(Request $request): JsonResponse
     {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Prestamo::with(Prestamo::RELACIONES_RECURSO);
 
         if (! $request->user()->esPersonalAdministrativo()) {
@@ -54,17 +57,47 @@ class PrestamoController extends Controller
             }
         }
 
-        $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
+        // HU-10: ?activos=1 deja solo los préstamos vivos (solicitado,
+        // aprobado, entregado); ?activos=0 solo los cerrados. Se combina con
+        // ?estado= y con el filtro por usuario como un AND más, igual que los
+        // filtros de /api/equipos: pedir estado=devuelto&activos=1 devuelve
+        // lista vacía, porque devuelto nunca es activo.
+        if ($request->filled('activos')) {
+            // Igual que ?estado=, un valor no reconocido es un error del
+            // cliente y no se adivina la intención: antes cualquier texto caía
+            // en false y devolvía los préstamos cerrados sin avisar.
+            $activos = filter_var($request->query('activos'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
 
-        return response()->json([
-            'data' => PrestamoResource::collection($prestamos),
-            'meta' => [
-                'current_page' => $prestamos->currentPage(),
-                'last_page' => $prestamos->lastPage(),
-                'per_page' => $prestamos->perPage(),
-                'total' => $prestamos->total(),
-            ],
-        ]);
+            if ($activos === null) {
+                throw ValidationException::withMessages([
+                    'activos' => ['El parámetro activos solo acepta 1, 0, true o false.'],
+                ]);
+            }
+
+            $activos
+                ? $query->whereIn('estado', EstadoPrestamo::valoresActivos())
+                : $query->whereNotIn('estado', EstadoPrestamo::valoresActivos());
+        }
+
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
+    }
+
+    /**
+     * HU-07: Lista las solicitudes pendientes de gestión (estado 'solicitado'),
+     * de la más antigua a la más reciente: es el orden en que deben atenderse.
+     *
+     * El detalle de cada solicitud sigue saliendo por GET /prestamos/{prestamo}.
+     */
+    public function pendientes(Request $request): JsonResponse
+    {
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
+            ->where('estado', EstadoPrestamo::Solicitado->value)
+            // Desempate por id: varias solicitudes pueden caer en el mismo
+            // segundo y fecha_solicitud no alcanza a distinguirlas.
+            ->orderBy('fecha_solicitud')
+            ->orderBy('id');
+
+        return $this->respuestaPaginada($query, $request, PrestamoResource::class);
     }
 
     /**
@@ -73,8 +106,6 @@ class PrestamoController extends Controller
      */
     public function activos(Request $request): JsonResponse
     {
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
             ->where('estado', EstadoPrestamo::Entregado->value);
 
@@ -93,17 +124,7 @@ class PrestamoController extends Controller
             });
         }
 
-        $prestamos = $query->latest('id')->paginate($perPage)->withQueryString();
-
-        return response()->json([
-            'data' => PrestamoResource::collection($prestamos),
-            'meta' => [
-                'current_page' => $prestamos->currentPage(),
-                'last_page' => $prestamos->lastPage(),
-                'per_page' => $prestamos->perPage(),
-                'total' => $prestamos->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
     }
 
     /**

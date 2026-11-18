@@ -15,13 +15,15 @@ use Illuminate\Validation\ValidationException;
 class DevolucionPrestamoService
 {
     public function __construct(
-        protected TransicionPrestamoService $transicionService
+        protected TransicionPrestamoService $transicionService,
+        protected RevisionEquipoService $revisionService
     ) {}
 
     /**
      * Registra la devolución de un equipo prestado.
-     * Orquesta dentro de una transacción el bloqueo estricto (primero equipo, luego préstamo)
-     * y la actualización del estado del equipo a 'disponible' o 'mantenimiento'.
+     * Orquesta dentro de una transacción el bloqueo estricto (primero equipo, luego préstamo),
+     * el registro de la revisión del equipo (HU-12) y la actualización del estado del equipo
+     * a 'disponible' o 'mantenimiento'.
      *
      * @param  array{
      *     fecha_devolucion_real?: CarbonInterface|string|null,
@@ -68,7 +70,32 @@ class DevolucionPrestamoService
                 ]);
             }
 
-            // 2. Transición del préstamo (TransicionPrestamoService bloquea el préstamo en segundo lugar)
+            // 2. La máquina de estados habla primero: la revisión solo puede
+            // registrarse sobre un préstamo 'entregado', así que sin este
+            // pre-chequeo un préstamo en otro estado recibiría el error de la
+            // revisión en vez del de la transición. El mensaje sale del enum
+            // para que sea idéntico al que emite TransicionPrestamoService.
+            $prestamoActual = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $prestamoActual->estado->puedeTransicionarA(EstadoPrestamo::Devuelto)) {
+                throw ValidationException::withMessages([
+                    'estado' => $prestamoActual->estado->mensajeTransicionInvalida(EstadoPrestamo::Devuelto),
+                ]);
+            }
+
+            // 3. HU-12: se registra la revisión del equipo DENTRO de la misma
+            // transacción, antes de la transición de estado: RevisionEquipoService
+            // exige que el préstamo esté todavía en 'entregado' (en proceso de
+            // devolución). Si la revisión falla, la devolución entera se revierte.
+            // Se le pasa la fila ya bloqueada arriba para no repetir el
+            // SELECT ... FOR UPDATE de la misma fila.
+            $this->revisionService->registrar($prestamoActual, $personal, [
+                'condicion' => $condicion,
+                'observaciones' => $datos['observaciones'] ?? null,
+                'fecha_revision' => $fechaDevolucion,
+            ], $prestamoActual);
+
+            // 4. Transición del préstamo (TransicionPrestamoService bloquea el préstamo en segundo lugar)
             // Se debe usar la instancia fresca retornada por el servicio
             $prestamoActualizado = $this->transicionService->transicionar(
                 $prestamo,
@@ -81,7 +108,7 @@ class DevolucionPrestamoService
                 ]
             );
 
-            // 3. Actualización de estado del equipo:
+            // 5. Actualización de estado del equipo:
             // Si el estado es 'bueno', regresa a 'disponible'; en caso de daños o necesidad de mantenimiento, pasa a 'mantenimiento'.
             // EquipoObserver registra automáticamente la trazabilidad en historial_estados.
             $nuevoEstadoEquipo = ($condicion === CondicionEquipo::Bueno)

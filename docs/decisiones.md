@@ -109,6 +109,159 @@ Decisiones adoptadas en esta rama:
 
 Ver `docs/api/prestamos.md` para el contrato completo de la API.
 
+## Revisión del equipo en la devolución (HU-12)
+
+Tabla `revisiones_equipo`: `prestamo_id` (FK a `prestamos`, **único**),
+`equipo_id` (FK a `equipos`), `condicion` (enum `CondicionEquipo`),
+`tiene_danos` (bool), `observaciones` (text, null), `revisado_por` (FK a
+`users`, null on delete), `fecha_revision`, `incidencia_id` y `timestamps`.
+
+Decisiones adoptadas en esta rama:
+
+- **Una revisión por préstamo (cerrado, KAN-125):** la revisión de devolución
+  es un hecho único del ciclo de vida, no una bitácora. La unicidad la
+  garantiza la base de datos con un índice único sobre `prestamo_id`, y
+  `RevisionEquipoService` la valida antes de insertar para devolver un 422 en
+  español en vez de un error de llave duplicada.
+- **`incidencia_id` sin foreign key (cerrado, KAN-125):** la columna queda
+  `nullable` e indexada pero **sin** restricción de integridad, porque la tabla
+  de incidencias de la HU-31 todavía no existe. Permite vincular la incidencia
+  después sin una segunda migración. Cuando exista, añadir la FK.
+- **`tiene_danos` derivado pero persistido:** se deriva de la condición
+  (`RevisionEquipo::condicionTieneDanos()`, única fuente de verdad), y se
+  almacena para poder filtrar y contar revisiones con novedad sin conocer los
+  valores del enum. El scope `conDanos()` es el insumo previsto para la HU-31.
+- **⚠️ Duplicación deliberada con `prestamos` (KAN-127):** las columnas
+  `condicion_devolucion`, `observaciones_devolucion` y `recibido_por` de
+  `prestamos` **se mantienen** y se siguen escribiendo. La revisión es la
+  **fuente de verdad** de la revisión física; esas columnas quedan como espejo
+  de solo lectura, escrito en la misma transacción. Se eligió así para no
+  romper el contrato de `PrestamoResource` ni las pruebas existentes. El costo
+  es real: son dos lugares que describen el mismo hecho y pueden divergir si
+  algún código futuro escribe uno sin el otro. **Cualquier escritura nueva debe
+  pasar por `DevolucionPrestamoService`**, nunca actualizar esas columnas
+  directamente. Si más adelante se decide una sola fuente, el cambio implica
+  reescribir `PrestamoResource`, `DevolucionPrestamoTest` y
+  `ContratoPrestamoResourceTest`.
+- **Atomicidad (cerrado, KAN-127):** la revisión se crea dentro de la **misma**
+  transacción de la devolución, antes de la transición de estado (porque
+  `RevisionEquipoService` exige que el préstamo esté todavía en `entregado`).
+  Si la revisión falla, la devolución entera se revierte y el equipo no cambia
+  de estado.
+- **La máquina de estados habla primero:** `DevolucionPrestamoService` valida
+  la transición antes de registrar la revisión, para que un préstamo en estado
+  incorrecto reciba el error de la transición y no el de la revisión. El texto
+  vive en `EstadoPrestamo::mensajeTransicionInvalida()` para tener una sola
+  fuente.
+- **Visibilidad (cerrado, KAN-127):** en `RevisionEquipoResource` las
+  `observaciones` se exponen solo a personal administrativo, mismo criterio que
+  `observaciones_entrega` / `observaciones_devolucion`. El solicitante sí ve
+  `condicion`, `condicion_etiqueta` y `tiene_danos`. `revisado_por` se expone
+  como id y **no** se carga su relación: el nombre ya viaja en
+  `usuario_recepcion` del préstamo y evitar la relación mantiene acotado el
+  presupuesto de consultas del listado.
+- **Endpoint propio para la consulta (cerrado, KAN-130):**
+  `GET /api/equipos/{equipo}/revisiones`, exclusivo de `admin` y `encargado`.
+  No se sumó a `GET /api/equipos/{equipo}/historial` porque ese endpoint lo
+  consulta cualquier autenticado y mezclaría datos de visibilidad distinta en
+  una misma lista, además de cambiar un contrato ya documentado.
+- **Presupuesto de consultas del listado de préstamos:** `revision` entra en
+  `Prestamo::RELACIONES_RECURSO` para que la clave exista en todas las
+  respuestas (null mientras no haya revisión). Eso sumó una consulta constante
+  y el umbral del test de N+1 subió de 9 a 10. El comentario de ese test
+  contaba 8 cuando la línea base real ya era 9 (faltaba la consulta de
+  autenticación del token); quedó corregido.
+
+Ver `docs/api/equipos.md` para el contrato del endpoint de revisiones.
+
+## Consulta de solicitudes y préstamos (HU-07 y HU-10)
+
+- **Definición de préstamo "activo" (cerrado en esta rama, KAN-119):**
+  `solicitado`, `aprobado` y `entregado`. Son los estados en que el préstamo
+  sigue vivo y compromete al solicitante y al equipo. `rechazado`, `cancelado`
+  y `devuelto` **nunca** son activos: son finales, liberan cupo y dejan el
+  equipo libre.
+
+  La definición vive en **`EstadoPrestamo::activos()`** (con
+  `valoresActivos()` y `esActivo()`), y es la **fuente única**: la consumen
+  tanto el cupo `max_activos_por_usuario` en `SolicitudPrestamoService` —que
+  antes repetía la lista a mano, dos veces— como el filtro `?activos=` del
+  listado. Así no pueden divergir.
+
+  Se eligió este conjunto porque es el que ya aplicaba de hecho el cupo por
+  usuario desde la HU-06; `docs/decisiones.md` lo mencionaba pero nunca
+  enumeraba los estados.
+
+- **⚠️ "Activo" tiene dos alcances distintos en la API, a propósito:**
+
+  | Dónde | Qué incluye |
+  |---|---|
+  | `?activos=1` en `GET /api/prestamos` | `solicitado` + `aprobado` + `entregado` |
+  | `GET /api/prestamos/activos` (HU-11) | solo `entregado` |
+
+  El endpoint de la HU-11 responde a "qué equipos están ahora mismo fuera, en
+  manos de alguien", mientras que el filtro de la HU-10 responde a "qué
+  préstamos míos siguen vigentes", que para el solicitante incluye los que
+  todavía espera que le aprueben o le entreguen. Se mantienen separados
+  porque responden preguntas distintas, pero **queda documentado en
+  `docs/api/prestamos.md`** para que nadie asuma que son equivalentes. Si en
+  el futuro molesta, lo que habría que cambiar es el nombre del endpoint de la
+  HU-11, no la definición del enum.
+
+- **Combinación de filtros (cerrado, KAN-119):** `?estado=`, `?activos=` y el
+  filtro automático por usuario se acumulan como **AND**, igual que los
+  filtros de `/api/equipos`. Una combinación contradictoria
+  (`?estado=devuelto&activos=1`) devuelve **lista vacía**, no un error: es
+  predecible y no añade casos especiales. Un `?estado=` inválido sigue dando
+  422 aunque venga acompañado de `?activos=`. Se descartó dar prioridad a uno
+  de los dos, porque ignorar en silencio un parámetro que el cliente envió
+  esconde errores.
+
+- **HU-10 no necesitó endpoint nuevo (KAN-118):** `GET /api/prestamos` ya
+  filtraba por `usuario_id` cuando quien consulta no es personal, y
+  `PrestamoResource` ya exponía equipo, `fecha_entrega_real`,
+  `fecha_devolucion_estimada` y estado. La tarea se cubrió solo con pruebas.
+
+- **Orden de las solicitudes pendientes (cerrado, KAN-104):**
+  `GET /api/prestamos/pendientes` ordena por `fecha_solicitud` **ascendente**
+  (con desempate por `id`), al revés que `GET /api/prestamos`. El criterio es
+  el orden de atención: primero la solicitud que lleva más tiempo esperando.
+
+- **Respuesta paginada unificada (ampliado en review):** el bloque que arma
+  `data` + `meta` estaba repetido en `index()` y `activos()`, y también en
+  `EquipoController` (catálogo, historial y revisiones) y en `UserController`.
+  Al revisar la HU-12 se extrajo al trait
+  `App\Http\Controllers\Concerns\RespuestaPaginada`, que usan los siete listados
+  paginados: `per_page` se acota igual en todos y el bloque `meta` ya no se
+  puede escribir dos veces distinto.
+
+- **`?activos=` valida su valor (corregido en el review de la HU-10):** antes
+  cualquier texto distinto de `1/0/true/false` caía en `false` y devolvía los
+  préstamos **cerrados** sin avisar, mientras un `?estado=` inválido sí
+  respondía 422. Ahora un valor no booleano responde **422
+  (`errors.activos`)**: adivinar la intención esconde errores del cliente. Se
+  conservan las formas booleanas habituales (`1`, `0`, `true`, `false`, `on`,
+  `off`, `yes`, `no`) y `?activos=` vacío sigue sin filtrar.
+
+- **Un solo bloqueo del préstamo en la devolución (ajustado en review):** la
+  devolución bloqueaba la fila de `prestamos` tres veces en la misma
+  transacción (orquestador, revisión y transición). `RevisionEquipoService::registrar()`
+  acepta ahora la fila ya bloqueada por el llamador, así que se ahorra un
+  `SELECT ... FOR UPDATE` sin cambiar el orden de bloqueo ni la semántica.
+
+- **N+1 corregido en `PrestamoResource` (hallado al implementar KAN-105):**
+  el recurso expone los roles del solicitante con `getRoleNames()`, que
+  disparaba **una consulta por fila**. No se notaba porque las pruebas
+  existentes usaban un único solicitante para todas las filas, y el eager
+  loading comparte la instancia; con un solicitante distinto por fila —el caso
+  normal en el listado de solicitudes pendientes— eran N consultas extra. La
+  corrección es cargar `solicitante.roles` en
+  `Prestamo::RELACIONES_RECURSO`, lo que sustituye N consultas por una
+  constante. **Al añadir campos de relación a `PrestamoResource`, revisar
+  siempre que la relación esté en `RELACIONES_RECURSO`.**
+
+Ver `docs/api/prestamos.md` secciones 3 y 7b para el contrato completo.
+
 ## Estrategia de pruebas y doble motor: SQLite y MySQL 8.0
 
 - **Ejecución por defecto en SQLite (`composer test`):** Los tests corren por defecto en SQLite en memoria (`:memory:`) mediante `phpunit.xml`. Su objetivo es brindar ciclos de retroalimentación rápidos durante el desarrollo local e iterativo.

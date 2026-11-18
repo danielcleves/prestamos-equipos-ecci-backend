@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Concerns\RespuestaPaginada;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\IndexEquipoRequest;
 use App\Http\Requests\Api\StoreEquipoRequest;
 use App\Http\Requests\Api\UpdateEquipoEstadoRequest;
 use App\Http\Resources\EquipoResource;
 use App\Http\Resources\HistorialEstadoResource;
+use App\Http\Resources\RevisionEquipoResource;
 use App\Models\Equipo;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -16,12 +18,10 @@ use Illuminate\Http\Request;
 
 class EquipoController extends Controller
 {
+    use RespuestaPaginada;
+
     public function index(IndexEquipoRequest $request): JsonResponse
     {
-        // max() evita que un per_page negativo o 0 llegue a paginate() (ver
-        // el mismo arreglo en UserController::index, senalado en review).
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
-
         $query = Equipo::with('categoria')
             ->when(! Equipo::puedeVerDadosDeBaja($request->user()), fn ($q) => $q->visiblesEnCatalogo())
             ->when($request->filled('categoria_id'), fn ($q) => $q->where('categoria_id', $request->integer('categoria_id')))
@@ -40,17 +40,7 @@ class EquipoController extends Controller
             default => $query->orderBy('nombre')->orderBy('id'),
         };
 
-        $equipos = $query->paginate($perPage)->withQueryString();
-
-        return response()->json([
-            'data' => EquipoResource::collection($equipos),
-            'meta' => [
-                'current_page' => $equipos->currentPage(),
-                'last_page' => $equipos->lastPage(),
-                'per_page' => $equipos->perPage(),
-                'total' => $equipos->total(),
-            ],
-        ]);
+        return $this->respuestaPaginada($query, $request, EquipoResource::class);
     }
 
     public function store(StoreEquipoRequest $request): JsonResponse
@@ -83,19 +73,30 @@ class EquipoController extends Controller
     {
         $this->asegurarVisibilidad($request->user(), $equipo);
 
-        $perPage = max(1, min($request->integer('per_page', 15), 100));
+        $historial = $equipo->historialEstados()->with('usuario');
 
-        $historial = $equipo->historialEstados()->with('usuario')->paginate($perPage);
+        return $this->respuestaPaginada($historial, $request, HistorialEstadoResource::class);
+    }
 
-        return response()->json([
-            'data' => HistorialEstadoResource::collection($historial),
-            'meta' => [
-                'current_page' => $historial->currentPage(),
-                'last_page' => $historial->lastPage(),
-                'per_page' => $historial->perPage(),
-                'total' => $historial->total(),
-            ],
-        ]);
+    /**
+     * HU-12 / KAN-130: revisiones de devolución del equipo, más recientes
+     * primero. Endpoint propio y exclusivo de personal administrativo: no se
+     * suma a /historial porque ese sí lo consulta cualquier autenticado y las
+     * observaciones de la revisión son reservadas.
+     *
+     * Las revisiones se conservan después de cerrado el préstamo: son la
+     * trazabilidad que alimenta la HU-31 (incidencias).
+     */
+    public function revisiones(Request $request, Equipo $equipo): JsonResponse
+    {
+        $revisiones = $equipo->revisiones();
+
+        // Filtro opcional para aislar las devoluciones con novedad.
+        if ($request->filled('con_danos')) {
+            $revisiones->where('tiene_danos', $request->boolean('con_danos'));
+        }
+
+        return $this->respuestaPaginada($revisiones, $request, RevisionEquipoResource::class);
     }
 
     private function asegurarVisibilidad(?User $user, Equipo $equipo): void

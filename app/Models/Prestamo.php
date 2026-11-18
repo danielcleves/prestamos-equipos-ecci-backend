@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'usuario_id',
@@ -45,10 +46,21 @@ class Prestamo extends Model
      */
     public const RELACIONES_RECURSO = [
         'equipo.categoria',
-        'solicitante',
+        // solicitante.roles y no solo 'solicitante': PrestamoResource expone
+        // los roles del solicitante al personal con getRoleNames(), que sin
+        // esta carga anticipada dispara una consulta por fila (N+1). No se
+        // notaba mientras todas las filas compartían solicitante; con un
+        // solicitante distinto por fila, como en el listado de solicitudes
+        // pendientes (HU-07), son N consultas extra.
+        'solicitante.roles',
         'gestionadoPor',
         'entregadoPor',
         'recibidoPor',
+        // HU-12: se carga siempre para que la clave 'revision' exista en todas
+        // las respuestas (nula mientras no haya revisión), igual que el resto
+        // del contrato. Sin relación anidada a proposito: el revisor añadiría
+        // una consulta al presupuesto del listado.
+        'revision',
     ];
 
     /**
@@ -108,6 +120,16 @@ class Prestamo extends Model
     public function recibidoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recibido_por');
+    }
+
+    /**
+     * HU-12: revisión del estado del equipo registrada en la devolución.
+     * hasOne y no hasMany: la unicidad de prestamo_id está garantizada por la
+     * base de datos (una sola revisión por préstamo).
+     */
+    public function revision(): HasOne
+    {
+        return $this->hasOne(RevisionEquipo::class, 'prestamo_id');
     }
 
     /**

@@ -40,7 +40,7 @@ class TransicionPrestamoService
 
             if (! $origen->puedeTransicionarA($destino)) {
                 throw ValidationException::withMessages([
-                    'estado' => "El préstamo está en estado {$origen->etiqueta()} y no puede pasar a {$destino->etiqueta()}.",
+                    'estado' => $origen->mensajeTransicionInvalida($destino),
                 ]);
             }
 

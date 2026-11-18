@@ -12,8 +12,9 @@ Implementa la gestión integral del ciclo de préstamos de equipos universitario
 
 | Método | Endpoint | Rol requerido | Propósito |
 |---|---|---|---|
-| `GET` | `/api/prestamos` | Cualquier autenticado | Listado paginado de préstamos (usuario común ve solo los suyos; admin y encargado ven todos). Soporta filtro opcional `?estado=`. |
+| `GET` | `/api/prestamos` | Cualquier autenticado | Listado paginado de préstamos (usuario común ve solo los suyos; admin y encargado ven todos). Filtros opcionales `?estado=` y `?activos=`. |
 | `POST` | `/api/prestamos` | Cualquier autenticado | Registra una nueva solicitud de préstamo en estado `solicitado`. |
+| `GET` | `/api/prestamos/pendientes` | `admin`, `encargado` | Listado paginado de solicitudes pendientes (`solicitado`), de la más antigua a la más reciente. |
 | `GET` | `/api/prestamos/activos` | `admin`, `encargado` | Listado paginado de préstamos activos (`entregado`) con búsqueda textual. |
 | `GET` | `/api/prestamos/{prestamo}` | Propietario / `admin` / `encargado` | Consulta el detalle puntual de un préstamo. |
 | `POST` | `/api/prestamos/{prestamo}/aprobacion` | `admin`, `encargado` | Aprueba una solicitud (`solicitado` -> `aprobado`). |
@@ -141,7 +142,39 @@ Lista paginada de préstamos:
 | Parámetro | Tipo | Descripción |
 |---|---|---|
 | `estado` | string | Filtra por estado del préstamo: `solicitado`, `aprobado`, `rechazado`, `entregado`, `devuelto`, `cancelado`. Si se envía un valor no soportado, responde con **HTTP 422** (`errors.estado`). Si viene vacío, no aplica filtro. |
+| `activos` | booleano | **HU-10.** `1` devuelve solo los préstamos activos; `0` solo los cerrados. Si viene vacío, no aplica filtro. Un valor que no sea booleano (`quizas`, `2`) responde **HTTP 422** (`errors.activos`), igual que un `estado` inválido. |
 | `per_page` | entero | Entero de 1 a 100 (por defecto 15). |
+
+### Qué cuenta como préstamo "activo"
+
+`solicitado`, `aprobado` y `entregado`: el préstamo sigue vivo y compromete al
+solicitante y al equipo. `rechazado`, `cancelado` y `devuelto` nunca son
+activos.
+
+Es el mismo conjunto que cuenta el cupo `max_activos_por_usuario`, y vive en un
+solo sitio: `EstadoPrestamo::activos()`.
+
+> **No confundir con `GET /api/prestamos/activos`** (sección 7, HU-11), que es
+> más estrecho: solo lista los `entregado`, es decir los que están físicamente
+> en manos de alguien. `?activos=1` es más amplio e incluye además los
+> `solicitado` y `aprobado`.
+
+### Combinación de filtros
+
+`estado`, `activos` y el filtro automático por usuario **se acumulan como AND**,
+igual que los filtros de `/api/equipos`. No hay precedencia entre ellos ni se
+ignora ninguno en silencio:
+
+| Petición | Resultado |
+|---|---|
+| `?estado=aprobado&activos=1` | Los `aprobado` (compatible: `aprobado` es activo) |
+| `?estado=devuelto&activos=1` | **Lista vacía**, porque `devuelto` nunca es activo. No es un error |
+| `?estado=entregado&activos=0` | **Lista vacía**, por el mismo motivo a la inversa |
+| `?estado=inventado&activos=1` | **HTTP 422** (`errors.estado`): el estado inválido se valida igual |
+| `?activos=quizas` | **HTTP 422** (`errors.activos`): tampoco se adivina un booleano |
+
+El filtro por usuario lo impone el servidor: enviar `usuario_id` o parámetros
+similares en la query string **no** permite ver préstamos ajenos.
 
 ---
 
@@ -341,6 +374,46 @@ Exclusivo para roles `admin` y `encargado`. Devuelve préstamos actualmente en p
 |---|---|---|
 | `buscar` | string | Búsqueda parcial sobre código de equipo, nombre de equipo, nombre del solicitante o correo del solicitante. Caracteres `%` y `_` escapados automáticamente. |
 | `per_page` | entero | Entero de 1 a 100 (por defecto 15). |
+
+---
+
+## 7b. Solicitudes Pendientes (`GET /api/prestamos/pendientes` — HU-07)
+
+Exclusivo para roles `admin` y `encargado`. Lista las solicitudes que esperan
+gestión, es decir las que están en estado `solicitado`.
+
+**Orden de atención**: de la solicitud más antigua a la más reciente
+(`fecha_solicitud` ascendente, con desempate por `id` porque varias
+solicitudes pueden caer en el mismo segundo). Es el orden inverso al de
+`GET /api/prestamos`, que muestra primero las más recientes.
+
+El **detalle** de cada solicitud se consulta por `GET /api/prestamos/{prestamo}`;
+este endpoint no lo duplica.
+
+### Parámetros opcionales
+| Parámetro | Tipo | Descripción |
+|---|---|---|
+| `per_page` | entero | Entero de 1 a 100 (por defecto 15). |
+
+### Datos de cada solicitud
+
+Mismo contrato que el resto de listados (`PrestamoResource`), incluidos:
+
+- `solicitante`: `{ id, name, email, is_active, roles }` (el correo, el estado y
+  los roles solo para personal administrativo).
+- `equipo`: el recurso completo del equipo con su categoría.
+- `fecha_solicitud`, `fecha_inicio`, `fecha_devolucion_estimada`: en la zona de
+  negocio (`-05:00`).
+- `estado` y `estado_etiqueta`.
+
+Nunca se exponen `password`, `remember_token` ni los tokens de acceso del
+solicitante.
+
+### Respuestas de error
+| Código | Caso |
+|---|---|
+| `401` | Sin token o token inválido. |
+| `403` | Rol `usuario`. |
 
 ---
 
