@@ -19,11 +19,12 @@
 name: CI/CD
 
 on:
+  # En pull_request no se filtran rutas a proposito: el check "Pruebas (PHPUnit)"
+  # es obligatorio para fusionar, y un PR que solo toca documentacion tambien debe
+  # reportarlo. Si el evento se saltara por paths-ignore, el check quedaria en
+  # "Expected" y el PR no se podria fusionar nunca.
   pull_request:
     branches: [develop, main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
   push:
     branches: [develop, main]
     paths-ignore:
