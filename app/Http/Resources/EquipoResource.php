@@ -31,6 +31,8 @@ class EquipoResource extends JsonResource
             // consultas de parámetros por fila.
             'duracion_maxima_dias' => $this->whenNotNull($this->duracion_maxima_dias),
             'descripcion' => $this->descripcion,
+            // Ubicación física opcional (bodega, sala, laboratorio).
+            'ubicacion' => $this->ubicacion,
             'disponible' => $disponible,
             'puede_solicitarse' => $disponible,
             'estado_disponibilidad' => $disponible ? 'disponible' : 'no_disponible',

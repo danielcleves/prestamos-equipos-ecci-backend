@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['codigo', 'nombre', 'categoria_id', 'descripcion', 'estado', 'observaciones'])]
+#[Fillable(['codigo', 'nombre', 'categoria_id', 'descripcion', 'ubicacion', 'estado', 'observaciones'])]
 #[ObservedBy([EquipoObserver::class])]
 class Equipo extends Model
 {

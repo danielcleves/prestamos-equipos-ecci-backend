@@ -135,6 +135,46 @@ class EquipoControllerTest extends TestCase
         $this->assertDatabaseHas('equipos', ['codigo' => 'EQ-001', 'estado' => 'disponible']);
     }
 
+    public function test_registrar_equipo_acepta_ubicacion_opcional(): void
+    {
+        $this->actingAsAdmin();
+        $categoria = Categoria::first();
+
+        $this->postJson('/api/equipos', [
+            'codigo' => 'EQ-UBI',
+            'nombre' => 'Proyector Epson',
+            'categoria_id' => $categoria->id,
+            'descripcion' => 'Full HD',
+            'ubicacion' => 'Bodega principal',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.ubicacion', 'Bodega principal');
+
+        $this->assertDatabaseHas('equipos', [
+            'codigo' => 'EQ-UBI',
+            'ubicacion' => 'Bodega principal',
+        ]);
+    }
+
+    public function test_registrar_equipo_sin_ubicacion_la_deja_nula(): void
+    {
+        $this->actingAsAdmin();
+        $categoria = Categoria::first();
+
+        $this->postJson('/api/equipos', [
+            'codigo' => 'EQ-SIN-UBI',
+            'nombre' => 'Tablet Lenovo',
+            'categoria_id' => $categoria->id,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.ubicacion', null);
+
+        $this->assertDatabaseHas('equipos', [
+            'codigo' => 'EQ-SIN-UBI',
+            'ubicacion' => null,
+        ]);
+    }
+
     public function test_registrar_equipo_ignora_el_estado_enviado_por_el_cliente(): void
     {
         $this->actingAsAdmin();

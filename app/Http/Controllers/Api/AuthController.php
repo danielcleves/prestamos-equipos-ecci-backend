@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginRequest;
+use App\Http\Requests\Api\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +45,30 @@ class AuthController extends Controller
             'token' => $token->plainTextToken,
             'user' => new UserResource($user),
         ]);
+    }
+
+    /**
+     * Auto-registro de un solicitante. El correo debe pertenecer a un dominio
+     * o dirección autorizada en la configuración; el rol siempre es `usuario`.
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $datos = $request->validated();
+
+        $user = User::create([
+            'name' => $datos['name'],
+            'email' => $datos['email'],
+            'password' => $datos['password'],
+            'is_active' => true,
+            'capacitado' => true,
+        ]);
+
+        $user->assignRole('usuario');
+
+        return response()->json([
+            'message' => 'Cuenta creada correctamente. Ya puedes iniciar sesión.',
+            'user' => new UserResource($user),
+        ], 201);
     }
 
     /**

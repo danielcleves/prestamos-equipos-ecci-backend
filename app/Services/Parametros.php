@@ -72,6 +72,12 @@ class Parametros
             'descripcion' => 'Exige estar capacitado para solicitar préstamos.',
             'default' => false,
         ],
+        'registro.correos_permitidos' => [
+            'tipo' => 'json',
+            'grupo' => 'registro',
+            'descripcion' => 'Correos exactos o dominios (@dominio.edu.co) autorizados para el auto-registro de solicitantes.',
+            'default' => ['@ecci.edu.co'],
+        ],
     ];
 
     /**
@@ -188,6 +194,25 @@ class Parametros
     public function requiereCapacitacion(): bool
     {
         return (bool) $this->valores()['elegibilidad.requiere_capacitacion'];
+    }
+
+    /**
+     * Correos exactos o dominios autorizados para el auto-registro.
+     *
+     * @return list<string>
+     */
+    public function correosPermitidos(): array
+    {
+        $valor = $this->valores()['registro.correos_permitidos'] ?? [];
+
+        if (! is_array($valor)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            $valor,
+            fn ($item) => is_string($item) && trim($item) !== ''
+        ));
     }
 
     /**

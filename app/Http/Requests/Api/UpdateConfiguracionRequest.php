@@ -103,11 +103,48 @@ class UpdateConfiguracionRequest extends FormRequest
             return $this->erroresEscalaMora($valor);
         }
 
+        if ($clave === 'registro.correos_permitidos') {
+            return $this->erroresCorreosPermitidos($valor);
+        }
+
         // cupos.roles, duracion.categorias y duracion.roles_extra son mapas de
         // nombre/id a número de días o de cupos.
         foreach ($valor as $nombre => $numero) {
             if (! $this->esEnteroNoNegativo($numero)) {
                 return ["El valor de «{$nombre}» en «{$clave}» debe ser un entero mayor o igual a cero."];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @param  array<mixed>  $correos
+     * @return array<int, string>
+     */
+    private function erroresCorreosPermitidos(array $correos): array
+    {
+        if ($correos === []) {
+            return ['Debe autorizar al menos un correo o dominio para el registro.'];
+        }
+
+        foreach ($correos as $correo) {
+            if (! is_string($correo) || trim($correo) === '') {
+                return ['Cada correo o dominio autorizado debe ser texto no vacío.'];
+            }
+
+            $correo = strtolower(trim($correo));
+
+            if (str_starts_with($correo, '@')) {
+                if (! preg_match('/^@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/', $correo)) {
+                    return ["El dominio «{$correo}» no tiene un formato válido."];
+                }
+
+                continue;
+            }
+
+            if (! filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+                return ["«{$correo}» no es un correo válido."];
             }
         }
 
