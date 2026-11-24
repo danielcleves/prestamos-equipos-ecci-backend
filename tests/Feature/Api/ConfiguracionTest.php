@@ -45,6 +45,18 @@ class ConfiguracionTest extends TestCase
             ->assertJsonPath('data.elegibilidad.requiere_capacitacion', false);
     }
 
+    public function test_get_incluye_las_categorias_y_su_nivel_de_restriccion(): void
+    {
+        $categoria = Categoria::create(['nombre' => 'Portátil', 'nivel_restriccion' => 1]);
+
+        $this->actingAs($this->admin(), 'sanctum')
+            ->getJson('/api/configuracion')
+            ->assertStatus(200)
+            ->assertJsonPath('data.categorias.0.id', $categoria->id)
+            ->assertJsonPath('data.categorias.0.nombre', 'Portátil')
+            ->assertJsonPath('data.categorias.0.nivel_restriccion', 1);
+    }
+
     public function test_put_actualiza_los_parametros_y_get_los_refleja(): void
     {
         $admin = $this->admin();
