@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\UpdateConfiguracionRequest;
+use App\Models\Categoria;
 use App\Models\Configuracion;
 use App\Services\Parametros;
 use Illuminate\Http\JsonResponse;
@@ -21,7 +22,16 @@ class ConfiguracionController extends Controller
      */
     public function show(Parametros $parametros): JsonResponse
     {
-        return response()->json(['data' => $parametros->porGrupos()]);
+        // H-11: la pantalla de configuración necesita el catálogo real de
+        // categorías para mostrar su nivel de restricción actual (RN-03).
+        return response()->json([
+            'data' => [
+                ...$parametros->porGrupos(),
+                'categorias' => Categoria::orderBy('id')
+                    ->get(['id', 'nombre', 'nivel_restriccion'])
+                    ->toArray(),
+            ],
+        ]);
     }
 
     /**
