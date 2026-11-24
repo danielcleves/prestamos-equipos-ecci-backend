@@ -1,7 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoriaController;
+use App\Http\Controllers\Api\ConfiguracionController;
 use App\Http\Controllers\Api\EquipoController;
+use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\PrestamoController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +29,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
     Route::patch('/usuarios/{usuario}/activar', [UserController::class, 'activar']);
     Route::patch('/usuarios/{usuario}/desactivar', [UserController::class, 'desactivar']);
+
+    // Iteración 2: parámetros de negocio y nivel de restricción por categoría.
+    Route::get('/configuracion', [ConfiguracionController::class, 'show']);
+    Route::put('/configuracion', [ConfiguracionController::class, 'update']);
+    Route::patch('/categorias/{categoria}/restriccion', [CategoriaController::class, 'actualizarRestriccion']);
 });
 
 // HU-03: catalogo de equipos. Consultar es para cualquier autenticado (lo
@@ -62,6 +70,12 @@ Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
     Route::post('/prestamos/{prestamo}/rechazo', [PrestamoController::class, 'rechazo']);
     Route::post('/prestamos/{prestamo}/entrega', [PrestamoController::class, 'entrega']);
     Route::post('/prestamos/{prestamo}/devolucion', [PrestamoController::class, 'devolucion']);
+    // RN-03: autorización especial previa a la aprobación.
+    Route::post('/prestamos/{prestamo}/autorizacion', [PrestamoController::class, 'autorizacion']);
+
+    // RN-08: incidencias por daños en la devolución.
+    Route::get('/incidencias', [IncidenciaController::class, 'index']);
+    Route::patch('/incidencias/{incidencia}/cerrar', [IncidenciaController::class, 'cerrar']);
 });
 
 // HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).

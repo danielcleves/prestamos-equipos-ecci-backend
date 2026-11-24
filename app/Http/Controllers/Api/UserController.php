@@ -34,6 +34,7 @@ class UserController extends Controller
             // default de MySQL no se refleja en el modelo recien creado
             // hasta volver a consultarlo.
             'is_active' => true,
+            'capacitado' => $data['capacitado'] ?? true,
         ]);
 
         $usuario->assignRole($data['role']);
@@ -60,6 +61,10 @@ class UserController extends Controller
 
         if (! empty($data['password'])) {
             $usuario->password = $data['password'];
+        }
+
+        if (array_key_exists('capacitado', $data)) {
+            $usuario->capacitado = (bool) $data['capacitado'];
         }
 
         $usuario->save();

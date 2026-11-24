@@ -21,7 +21,15 @@ class EquipoResource extends JsonResource
             'categoria' => $this->whenLoaded('categoria', fn () => [
                 'id' => $this->categoria->id,
                 'nombre' => $this->categoria->nombre,
+                // RN-01 / RN-03: 0 libre, 1 requiere autorización, 2 solo
+                // personal administrativo.
+                'nivel_restriccion' => (int) $this->categoria->nivel_restriccion,
             ]),
+            // RN-06: solo se expone en el detalle del equipo, donde el
+            // controlador calcula el límite según categoría y rol. En los
+            // listados (o anidado en un préstamo) se omite para no multiplicar
+            // consultas de parámetros por fila.
+            'duracion_maxima_dias' => $this->whenNotNull($this->duracion_maxima_dias),
             'descripcion' => $this->descripcion,
             'disponible' => $disponible,
             'puede_solicitarse' => $disponible,

@@ -13,6 +13,7 @@ use App\Http\Resources\PrestamoResource;
 use App\Models\Prestamo;
 use App\Models\User;
 use App\Services\AprobacionPrestamoService;
+use App\Services\AutorizacionPrestamoService;
 use App\Services\DevolucionPrestamoService;
 use App\Services\EntregaPrestamoService;
 use App\Services\RechazoPrestamoService;
@@ -149,6 +150,22 @@ class PrestamoController extends Controller
 
         return response()->json([
             'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * RN-03: autoriza una solicitud de categoría restringida antes de que
+     * pueda aprobarse (solo personal administrativo).
+     */
+    public function autorizacion(
+        Request $request,
+        Prestamo $prestamo,
+        AutorizacionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->autorizar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
         ]);
     }
 

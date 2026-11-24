@@ -46,6 +46,13 @@ class PrestamoResource extends JsonResource
             'condicion_devolucion' => $this->condicion_devolucion?->value,
             'condicion_devolucion_etiqueta' => $this->condicion_devolucion?->etiqueta(),
             'gestionado_por' => $this->gestionado_por,
+            // RN-03: autorización especial de las categorías restringidas.
+            // Se expone la clave siempre y el id del autorizador, sin cargar
+            // la relación, para no añadir consultas al listado.
+            'requiere_autorizacion' => (bool) $this->requiere_autorizacion,
+            'autorizado' => $this->autorizado_por !== null,
+            'autorizado_por' => $this->autorizado_por,
+            'fecha_autorizacion' => FechaNegocio::formatear($this->fecha_autorizacion),
             'usuario_gestion' => $this->whenLoaded('gestionadoPor', fn () => [
                 'id' => $this->gestionadoPor->id,
                 'name' => $this->gestionadoPor->name,

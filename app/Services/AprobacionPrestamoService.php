@@ -53,7 +53,18 @@ class AprobacionPrestamoService
                 ]);
             }
 
-            // 3. Transición del préstamo: TransicionPrestamoService bloquea el préstamo en segundo lugar
+            // 3. RN-03: una solicitud de categoría restringida no puede
+            // aprobarse hasta que el personal la haya autorizado. Se recarga
+            // el préstamo para no decidir con datos viejos de la petición.
+            $prestamoFresco = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($prestamoFresco->requiere_autorizacion && $prestamoFresco->autorizado_por === null) {
+                throw ValidationException::withMessages([
+                    'prestamo' => 'Este préstamo requiere autorización especial antes de aprobarse.',
+                ]);
+            }
+
+            // 4. Transición del préstamo: TransicionPrestamoService bloquea el préstamo en segundo lugar
             // con lockForUpdate() y valida sobre datos frescos que su estado actual sea 'solicitado'.
             return $this->transicionService->transicionar(
                 $prestamo,
