@@ -45,15 +45,24 @@ class ElegibilidadService
             ]);
         }
 
+        $diasBloqueo = max(0, $this->parametros->diasBloqueoMora());
+        $limiteMora = now()->subDays($diasBloqueo);
+
         $prestamoVencido = Prestamo::where('usuario_id', $usuario->id)
             ->where('estado', EstadoPrestamo::Entregado->value)
-            ->where('fecha_devolucion_estimada', '<', now())
+            // RN-04: el umbral es parametrizable. Con 0 bloquea desde el
+            // primer instante de retraso; con N exige N días completos.
+            ->where('fecha_devolucion_estimada', '<', $limiteMora)
             ->orderBy('fecha_devolucion_estimada')
             ->first();
 
         if ($prestamoVencido !== null) {
+            $mensaje = $diasBloqueo === 0
+                ? 'Tienes un préstamo entregado y vencido; debes devolverlo antes de solicitar otro equipo.'
+                : "Tienes un préstamo entregado con {$diasBloqueo} día(s) o más de retraso; debes devolverlo antes de solicitar otro equipo.";
+
             throw ValidationException::withMessages([
-                'usuario_id' => 'Tienes un préstamo entregado y vencido; debes devolverlo antes de solicitar otro equipo.',
+                'usuario_id' => $mensaje,
             ]);
         }
 
