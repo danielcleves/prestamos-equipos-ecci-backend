@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Equipo;
 use App\Rules\TextoNoVacio;
+use App\Services\Parametros;
 use App\Support\FechaNegocio;
 use Carbon\Carbon;
 use Closure;
@@ -73,7 +75,12 @@ class StorePrestamoRequest extends FormRequest
                         return;
                     }
 
-                    $maxDias = (int) config('prestamos.duracion_maxima_dias', 7);
+                    // RN-06: el máximo depende de la categoría del equipo y
+                    // del rol del solicitante (parámetros administrables).
+                    $categoriaId = (int) (Equipo::whereKey($this->input('equipo_id'))->value('categoria_id') ?? 0);
+                    $rol = $this->user()?->rolPrincipal() ?? 'usuario';
+                    $maxDias = app(Parametros::class)->duracionMaxima($categoriaId, $rol);
+
                     if ($devolucion->greaterThan($inicio->copy()->addDays($maxDias)->endOfDay())) {
                         $fail("La fecha de devolución estimada no puede superar los {$maxDias} días posteriores a la fecha de inicio.");
                     }

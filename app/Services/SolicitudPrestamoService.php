@@ -13,6 +13,11 @@ use Illuminate\Validation\ValidationException;
 
 class SolicitudPrestamoService
 {
+    public function __construct(
+        protected Parametros $parametros,
+        protected ElegibilidadService $elegibilidad
+    ) {}
+
     /**
      * Registra una nueva solicitud de préstamo dentro de una transacción.
      *
@@ -37,22 +42,28 @@ class SolicitudPrestamoService
             // 2. A continuación se bloquea el equipo con lockForUpdate() antes de validar su disponibilidad y cruce de fechas.
             $equipo = Equipo::whereKey($data['equipo_id'])->lockForUpdate()->firstOrFail();
 
-            // 3. El usuario no debe superar config('prestamos.max_activos_por_usuario') (cuenta solicitado, aprobado, entregado)
-            // Evaluado tras bloquear al solicitante para garantizar datos frescos y consistencia concurrente.
-            $maxActivos = (int) config('prestamos.max_activos_por_usuario', 3);
+            // 3. RN-01: el solicitante debe ser elegible para el equipo y la
+            // categoría (sanciones, préstamos vencidos, capacitación y
+            // restricción por tipo de equipo). Se consulta con los datos ya
+            // bloqueados, dentro de la misma transacción.
+            $this->elegibilidad->validar($solicitante, $equipo);
+
+            // 4. RN-02: el cupo de préstamos vivos depende del rol del
+            // usuario (parámetro cupos.roles), no de un valor fijo.
+            $cupo = $this->parametros->cupoActivo($solicitante->rolPrincipal());
             $activosUsuario = Prestamo::where('usuario_id', $solicitante->id)
                 // Fuente única de qué cuenta como activo, compartida con el
                 // filtro ?activos= del listado (HU-10).
                 ->whereIn('estado', EstadoPrestamo::valoresActivos())
                 ->count();
 
-            if ($activosUsuario >= $maxActivos) {
+            if ($activosUsuario >= $cupo) {
                 throw ValidationException::withMessages([
-                    'usuario_id' => "Has alcanzado el límite máximo de {$maxActivos} préstamos activos.",
+                    'usuario_id' => "Has alcanzado el límite máximo de {$cupo} préstamos activos.",
                 ]);
             }
 
-            // 4. El equipo debe cumplir Equipo::isDisponible() (única fuente de verdad de la HU-05)
+            // 5. El equipo debe cumplir Equipo::isDisponible() (única fuente de verdad de la HU-05)
             if (! $equipo->isDisponible()) {
                 if ($equipo->isDadoDeBaja()) {
                     throw ValidationException::withMessages([
@@ -79,7 +90,7 @@ class SolicitudPrestamoService
                 ? $data['fecha_devolucion_estimada']
                 : FechaNegocio::parsear($data['fecha_devolucion_estimada']);
 
-            // 5. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
+            // 6. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
             $hayCruce = Prestamo::where('equipo_id', $equipo->id)
                 // Solo los préstamos activos bloquean el calendario del equipo.
                 ->whereIn('estado', EstadoPrestamo::valoresActivos())
@@ -93,8 +104,12 @@ class SolicitudPrestamoService
                 ]);
             }
 
-            // 6. Se crea el préstamo en estado solicitado con fecha_solicitud = now().
+            // 7. Se crea el préstamo en estado solicitado con fecha_solicitud = now().
             // La solicitud NO cambia el estado del equipo.
+            // RN-03: las categorías con nivel de restricción >= 1 exigen una
+            // autorización adicional antes de poder aprobarse.
+            $requiereAutorizacion = $equipo->categoria?->requiereAutorizacion() ?? false;
+
             return Prestamo::create([
                 'usuario_id' => $solicitante->id,
                 'equipo_id' => $equipo->id,
@@ -103,6 +118,7 @@ class SolicitudPrestamoService
                 'fecha_solicitud' => now(),
                 'fecha_inicio' => $fechaInicio,
                 'fecha_devolucion_estimada' => $fechaDevolucionEstimada,
+                'requiere_autorizacion' => $requiereAutorizacion,
             ]);
         });
     }

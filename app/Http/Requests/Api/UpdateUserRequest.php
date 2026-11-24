@@ -28,6 +28,8 @@ class UpdateUserRequest extends FormRequest
             // Contrasena opcional: solo se cambia si se manda un valor.
             'password' => ['sometimes', 'nullable', 'string', 'min:8'],
             'role' => ['sometimes', 'required', 'string', Rule::in(['admin', 'encargado', 'usuario'])],
+            // RN-01: requisito de capacitación.
+            'capacitado' => ['sometimes', 'boolean'],
         ];
     }
 }

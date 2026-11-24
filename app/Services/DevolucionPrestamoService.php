@@ -16,7 +16,9 @@ class DevolucionPrestamoService
 {
     public function __construct(
         protected TransicionPrestamoService $transicionService,
-        protected RevisionEquipoService $revisionService
+        protected RevisionEquipoService $revisionService,
+        protected SancionService $sancionService,
+        protected IncidenciaService $incidenciaService
     ) {}
 
     /**
@@ -89,7 +91,7 @@ class DevolucionPrestamoService
             // devolución). Si la revisión falla, la devolución entera se revierte.
             // Se le pasa la fila ya bloqueada arriba para no repetir el
             // SELECT ... FOR UPDATE de la misma fila.
-            $this->revisionService->registrar($prestamoActual, $personal, [
+            $revision = $this->revisionService->registrar($prestamoActual, $personal, [
                 'condicion' => $condicion,
                 'observaciones' => $datos['observaciones'] ?? null,
                 'fecha_revision' => $fechaDevolucion,
@@ -108,7 +110,20 @@ class DevolucionPrestamoService
                 ]
             );
 
-            // 5. Actualización de estado del equipo:
+            // 5. RN-04: si la devolución fue después de la fecha estimada se
+            // registra la sanción escalonada correspondiente.
+            $this->sancionService->registrarPorMora($prestamoActualizado, $fechaDevolucion);
+
+            // 6. RN-08: una devolución con daños o que requiere mantenimiento
+            // abre una incidencia que restringe al solicitante y queda
+            // enlazada desde la revisión (revisiones_equipo.incidencia_id).
+            if ($revision->tiene_danos) {
+                $incidencia = $this->incidenciaService->abrir($prestamoActualizado, $revision);
+
+                $revision->update(['incidencia_id' => $incidencia->id]);
+            }
+
+            // 7. Actualización de estado del equipo:
             // Si el estado es 'bueno', regresa a 'disponible'; en caso de daños o necesidad de mantenimiento, pasa a 'mantenimiento'.
             // EquipoObserver registra automáticamente la trazabilidad en historial_estados.
             $nuevoEstadoEquipo = ($condicion === CondicionEquipo::Bueno)

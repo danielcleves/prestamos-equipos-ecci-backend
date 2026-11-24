@@ -12,6 +12,7 @@ use App\Http\Resources\HistorialEstadoResource;
 use App\Http\Resources\RevisionEquipoResource;
 use App\Models\Equipo;
 use App\Models\User;
+use App\Services\Parametros;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,11 +56,20 @@ class EquipoController extends Controller
         return response()->json(['data' => new EquipoResource($equipo->load('categoria'))], 201);
     }
 
-    public function show(Request $request, Equipo $equipo): JsonResponse
+    public function show(Request $request, Equipo $equipo, Parametros $parametros): JsonResponse
     {
         $this->asegurarVisibilidad($request->user(), $equipo);
 
-        return response()->json(['data' => new EquipoResource($equipo->load('categoria'))]);
+        $equipo->load('categoria');
+
+        // RN-06: el detalle del equipo informa la duración máxima aplicable
+        // al usuario que consulta (categoría del equipo + extra de su rol).
+        $equipo->setAttribute(
+            'duracion_maxima_dias',
+            $parametros->duracionMaxima((int) $equipo->categoria_id, $request->user()->rolPrincipal())
+        );
+
+        return response()->json(['data' => new EquipoResource($equipo)]);
     }
 
     public function actualizarEstado(UpdateEquipoEstadoRequest $request, Equipo $equipo): JsonResponse

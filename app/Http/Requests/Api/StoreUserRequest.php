@@ -24,6 +24,8 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::in(['admin', 'encargado', 'usuario'])],
+            // RN-01: requisito de capacitación (por defecto, capacitado).
+            'capacitado' => ['sometimes', 'boolean'],
         ];
     }
 }

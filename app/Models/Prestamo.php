@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -32,6 +33,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'motivo_rechazo',
     'observaciones_entrega',
     'observaciones_devolucion',
+    'requiere_autorizacion',
+    'autorizado_por',
+    'fecha_autorizacion',
 ])]
 class Prestamo extends Model
 {
@@ -79,6 +83,8 @@ class Prestamo extends Model
             'fecha_rechazo' => 'datetime',
             'fecha_entrega_real' => 'datetime',
             'fecha_devolucion_real' => 'datetime',
+            'requiere_autorizacion' => 'boolean',
+            'fecha_autorizacion' => 'datetime',
         ];
     }
 
@@ -120,6 +126,30 @@ class Prestamo extends Model
     public function recibidoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'recibido_por');
+    }
+
+    /**
+     * Miembro del personal que autorizó una solicitud restringida (RN-03).
+     */
+    public function autorizadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'autorizado_por');
+    }
+
+    /**
+     * Sanciones por mora asociadas al préstamo (RN-04).
+     */
+    public function sanciones(): HasMany
+    {
+        return $this->hasMany(Sancion::class, 'prestamo_id')->latest('id');
+    }
+
+    /**
+     * Incidencia abierta con la devolución con daños (RN-08).
+     */
+    public function incidencia(): HasOne
+    {
+        return $this->hasOne(Incidencia::class, 'prestamo_id');
     }
 
     /**
