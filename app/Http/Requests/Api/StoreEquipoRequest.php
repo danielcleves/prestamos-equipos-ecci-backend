@@ -26,6 +26,7 @@ class StoreEquipoRequest extends FormRequest
             'nombre' => ['required', 'string', 'max:255'],
             'categoria_id' => ['required', 'integer', 'exists:categorias,id'],
             'descripcion' => ['nullable', 'string'],
+            'ubicacion' => ['nullable', 'string', 'max:255'],
             'observaciones' => ['nullable', 'string'],
         ];
     }

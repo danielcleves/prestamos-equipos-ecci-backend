@@ -57,6 +57,27 @@ class ConfiguracionTest extends TestCase
             ->assertJsonPath('data.categorias.0.nivel_restriccion', 1);
     }
 
+    public function test_put_acepta_correos_permitidos_para_el_registro(): void
+    {
+        $this->actingAs($this->admin(), 'sanctum')
+            ->putJson('/api/configuracion', [
+                'registro.correos_permitidos' => ['@ecci.edu.co', 'docente@otra-universidad.edu.co'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.registro.correos_permitidos.0', '@ecci.edu.co')
+            ->assertJsonPath('data.registro.correos_permitidos.1', 'docente@otra-universidad.edu.co');
+    }
+
+    public function test_put_rechaza_un_correo_permitido_invalido(): void
+    {
+        $this->actingAs($this->admin(), 'sanctum')
+            ->putJson('/api/configuracion', [
+                'registro.correos_permitidos' => ['no-es-un-correo'],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['parametros.registro.correos_permitidos']);
+    }
+
     public function test_put_actualiza_los_parametros_y_get_los_refleja(): void
     {
         $admin = $this->admin();
