@@ -17,11 +17,12 @@ gestionar usuarios y roles").
 
 ## Roles disponibles
 
-`admin`, `encargado`, `usuario` (decisión cerrada, ver
-[`docs/decisiones.md`](../decisiones.md) — corresponden a administrador /
-personal de préstamo / solicitante de la HU-02). Cada usuario tiene **un
-solo rol a la vez**: `PUT/PATCH` con `role` reemplaza el rol anterior, no lo
-acumula.
+Cualquier rol existente (ver [`roles.md`](roles.md)): los de sistema `admin`
+(administrador) y `encargado` (personal de préstamo), y los de solicitante
+—`estudiante` por defecto y los que cree el admin (`profesor`,
+`coordinador`…)—. Cada usuario tiene **un solo rol a la vez**: `PUT/PATCH` con
+`role` reemplaza el rol anterior, no lo acumula. El rol decide el cupo de
+préstamos vivos (RN-02).
 
 ## Reglas
 
@@ -57,7 +58,10 @@ Respuesta (`201`):
     "name": "Ana Pérez",
     "email": "ana@ecci.edu.co",
     "is_active": true,
-    "roles": ["encargado"]
+    "capacitado": true,
+    "roles": ["encargado"],
+    "rol_principal": "encargado",
+    "rol_etiqueta": "Personal de préstamo"
   }
 }
 ```
@@ -68,7 +72,7 @@ Respuesta (`201`):
 curl -i -X PATCH http://localhost:8000/api/usuarios/5 \
   -H "Authorization: Bearer <token-admin>" \
   -H "Content-Type: application/json" \
-  -d '{"role": "usuario"}'
+  -d '{"role": "profesor"}'
 ```
 
 **Desactivar un usuario**

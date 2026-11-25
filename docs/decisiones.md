@@ -7,20 +7,33 @@ solo debe contener lo que ya es acuerdo de equipo o una propuesta explícita
 sobre la que se pide validación, nunca discusiones en curso o notas
 personales.
 
-## Roles (cerrado)
+## Roles (actualizado el 24 nov 2026 — RN-02)
 
-`spatie/laravel-permission`, 3 roles fijos — cada usuario tiene **uno solo a
-la vez**:
+`spatie/laravel-permission` con el modelo propio `App\Models\Rol` (columnas
+`etiqueta`, `descripcion`, `cupo_prestamos`, `es_predeterminado`). Cada
+usuario tiene **un solo rol a la vez**:
 
-| Rol | Corresponde a (HU-02) |
-|---|---|
-| `admin` | Administrador |
-| `encargado` | Personal de préstamo |
-| `usuario` | Solicitante |
+| Rol | Tipo | Corresponde a |
+|---|---|---|
+| `admin` | Sistema | Administrador |
+| `encargado` | Sistema | Personal de préstamo |
+| `estudiante` | Solicitante (predeterminado) | Solicitante; antes se llamaba `usuario` |
+| `profesor`, `coordinador`… | Solicitante | Roles que crea el admin en `/api/roles` |
 
-Los crea `database/seeders/RoleSeeder.php` de forma idempotente
-(`firstOrCreate`), para que existan sin importar el orden en que se corran
-los seeders.
+- Los roles de sistema son los únicos que dan permisos (middleware
+  `role:admin` y `role:admin|encargado`); por eso no se pueden borrar y su
+  nombre técnico no cambia.
+- Los de solicitante solo cambian el **cupo** de préstamos vivos (RN-02) y
+  los días extra de duración (RN-06).
+- El cupo vive en `roles.cupo_prestamos`, no en `configuraciones`: así un rol
+  nuevo nace con su cupo y al borrarlo no quedan claves huérfanas.
+- La migración `2026_11_24_000008` renombra `usuario` → `estudiante`
+  (conserva las asignaciones, que van por id), copia `cupos.roles` a la
+  columna y borra esa fila.
+
+Los roles iniciales los crea `database/seeders/RoleSeeder.php` de forma
+idempotente (`firstOrCreate`, sin pisar cupos ajustados). Detalle de la API en
+[`docs/api/roles.md`](api/roles.md).
 
 ## Modelo de datos — alcance funcional (cerrado por el PO, 2026-09-05)
 
@@ -100,7 +113,7 @@ Decisiones adoptadas en esta rama:
 - **Liberación de cupo y disponibilidad:** Una solicitud rechazada no modifica el equipo físico (que permanece disponible para otros préstamos o para que el mismo solicitante lo vuelva a pedir), y no computa dentro del cupo de préstamos activos del usuario (`max_activos_por_usuario`).
 - **Filtro por estado en listado (`GET /api/prestamos?estado=`):** Se implementa el filtrado exacto por estado respetando la política de visibilidad del usuario (un usuario común filtra sobre sus propios préstamos; el personal administrativo filtra sobre la totalidad). Valores no soportados responden con HTTP 422 estandarizado (`errors.estado`).
 - **Actor `recibido_por` (cerrado):** Corresponde al personal administrativo que recibe físicamente la devolución del equipo.
-- **Parámetros de negocio en `config/prestamos.php` (cerrado):** 7 días (`duracion_maxima_dias`) y 3 préstamos activos (`max_activos_por_usuario`) quedan como valores por defecto configurables por `.env`.
+- **Parámetros de negocio en `config/prestamos.php` (cerrado):** 7 días (`duracion_maxima_dias`) y 3 préstamos activos (`max_activos_por_usuario`) quedan como valores por defecto configurables por `.env`. *(Superado: desde la iteración 2 el cupo es por rol — `roles.cupo_prestamos`, ver «Roles» — y la duración por categoría y rol.)*
 - **Trazabilidad del préstamo por columnas de fecha y actor:** Sin tabla de historial de préstamos propia. Cada momento queda registrado en sus columnas correspondientes (`fecha_solicitud`, `fecha_aprobacion` + `gestionado_por`, `fecha_rechazo` + `gestionado_por`, `fecha_entrega_real` + `entregado_por`, `fecha_devolucion_real` + `recibido_por`). Los cambios de estado físico del equipo provocados por la entrega y la devolución quedan auditados automáticamente en `historial_estados` vía `EquipoObserver`.
 - **Separación de observaciones y restricción de visibilidad (cerrado, HU-09):** Se separan en dos columnas independientes (`observaciones_entrega` y `observaciones_devolucion`, tipo text, null). Se eliminan prefijos y concatenaciones. En `PrestamoResource`, ambas columnas se exponen únicamente si quien consulta es personal administrativo (`admin` o `encargado`), manteniéndose ocultas para el usuario solicitante. El solicitante sigue viendo `condicion_entrega` y `condicion_devolucion` con sus etiquetas. Los endpoints de entrega y devolución siguen recibiendo el campo `observaciones` en el payload de la petición.
 - **Manejo de zona horaria y fechas en la API:** La base de datos y la aplicación Laravel se mantienen en UTC (`app.timezone = 'UTC'`). La zona de negocio se configura en `config('prestamos.zona_horaria')` (`America/Bogota`, UTC-5). La clase `App\Support\FechaNegocio` encapsula el parseo estricto (rechaza fechas sin hora, cadenas relativas o con barras) y la normalización a UTC que consumen los Form Requests. En la salida, `PrestamoResource` serializa las siete fechas de préstamo junto con `created_at` y `updated_at` con copia en memoria hacia la zona de negocio (`-05:00`) mediante `FechaNegocio::formatear()` sin mutar el modelo en UTC, mientras que `HistorialEstadoResource` y timestamps estándar de otras entidades continúan en UTC (`Z`). Ambos son instantes ISO 8601 estándar.

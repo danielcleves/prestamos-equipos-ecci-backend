@@ -184,9 +184,10 @@ Validación de entrada ([StorePrestamoRequest](../app/Http/Requests/Api/StorePre
 
 Reglas de negocio dentro de la transacción, en este orden:
 
-5. **Cupo:** el usuario no puede tener más de
-   `config('prestamos.max_activos_por_usuario')` (**3** por defecto) préstamos
-   en estado `solicitado`, `aprobado` o `entregado`. Rechazados, cancelados y
+5. **Cupo (RN-02):** el usuario no puede tener más préstamos en estado
+   `solicitado`, `aprobado` o `entregado` que el `cupo_prestamos` de su rol
+   (estudiante 3, encargado 5 y admin 10 por defecto; el admin crea más roles
+   y ajusta sus cupos en `/api/roles`). Rechazados, cancelados y
    devueltos **no cuentan** — liberan cupo.
 6. **Disponibilidad:** el equipo debe estar `disponible`, con mensajes de error
    diferenciados para `dado_de_baja`, `mantenimiento` y el resto.
@@ -315,7 +316,7 @@ gestión de incidencias.
 `solicitado`, `aprobado` y `entregado`. Los finales —`rechazado`, `cancelado`,
 `devuelto`— nunca lo son. La definición vive en
 [EstadoPrestamo::activos()](../app/Enums/EstadoPrestamo.php) y es la **fuente
-única**: la consumen el cupo `max_activos_por_usuario` y el filtro `?activos=`.
+única**: la consumen el cupo por rol (RN-02) y el filtro `?activos=`.
 
 > **Ojo con el nombre.** `?activos=1` (3 estados) **no** es lo mismo que el
 > endpoint `/prestamos/activos` (solo `entregado`). El endpoint responde "qué
