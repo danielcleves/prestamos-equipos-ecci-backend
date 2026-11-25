@@ -24,6 +24,8 @@ class UserController extends Controller
         $usuarios = User::with([
             'roles',
             'sanciones' => fn ($query) => $query->vigentes(),
+            // RN-01: UserResource lista las capacitaciones de cada fila.
+            'categoriasCapacitadas',
         ])->orderBy('name');
 
         return $this->respuestaPaginada($usuarios, $request, UserResource::class);
@@ -33,25 +35,31 @@ class UserController extends Controller
     {
         $data = $request->validated();
 
-        $usuario = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => $data['password'],
-            // Explicito en vez de confiar en el default de la columna: el
-            // default de MySQL no se refleja en el modelo recien creado
-            // hasta volver a consultarlo.
-            'is_active' => true,
-            'capacitado' => $data['capacitado'] ?? true,
-        ]);
+        $usuario = DB::transaction(function () use ($data, $request) {
+            $usuario = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => $data['password'],
+                // Explicito en vez de confiar en el default de la columna: el
+                // default de MySQL no se refleja en el modelo recien creado
+                // hasta volver a consultarlo.
+                'is_active' => true,
+            ]);
 
-        $usuario->assignRole($data['role']);
+            $usuario->assignRole($data['role']);
 
-        return response()->json(['data' => new UserResource($usuario)], 201);
+            // RN-01: por defecto, sin capacitaciones.
+            $this->sincronizarCapacitaciones($usuario, $data['capacitaciones'] ?? [], $request->user());
+
+            return $usuario;
+        });
+
+        return response()->json(['data' => new UserResource($usuario->load('categoriasCapacitadas'))], 201);
     }
 
     public function show(User $usuario): JsonResponse
     {
-        return response()->json(['data' => new UserResource($usuario)]);
+        return response()->json(['data' => new UserResource($usuario->load('categoriasCapacitadas'))]);
     }
 
     public function update(UpdateUserRequest $request, User $usuario): JsonResponse
@@ -70,17 +78,20 @@ class UserController extends Controller
             $usuario->password = $data['password'];
         }
 
-        if (array_key_exists('capacitado', $data)) {
-            $usuario->capacitado = (bool) $data['capacitado'];
-        }
+        DB::transaction(function () use ($usuario, $data, $request) {
+            $usuario->save();
 
-        $usuario->save();
+            if (array_key_exists('role', $data)) {
+                $usuario->syncRoles([$data['role']]);
+            }
 
-        if (array_key_exists('role', $data)) {
-            $usuario->syncRoles([$data['role']]);
-        }
+            // RN-01: si no viene, las capacitaciones no se tocan.
+            if (array_key_exists('capacitaciones', $data)) {
+                $this->sincronizarCapacitaciones($usuario, $data['capacitaciones'], $request->user());
+            }
+        });
 
-        return response()->json(['data' => new UserResource($usuario)]);
+        return response()->json(['data' => new UserResource($usuario->load('categoriasCapacitadas'))]);
     }
 
     public function activar(User $usuario): JsonResponse
@@ -112,5 +123,29 @@ class UserController extends Controller
         });
 
         return response()->json(['data' => new UserResource($usuario)]);
+    }
+
+    /**
+     * Deja al usuario capacitado exactamente en las categorías indicadas
+     * (RN-01). Las capacitaciones que ya tenía conservan su fecha y quién
+     * las otorgó; las nuevas quedan a nombre del admin autenticado.
+     *
+     * @param  array<int, int|string>  $categoriaIds
+     */
+    private function sincronizarCapacitaciones(User $usuario, array $categoriaIds, User $admin): void
+    {
+        $solicitadas = array_map('intval', $categoriaIds);
+        $actuales = $usuario->categoriasCapacitadas()->pluck('categorias.id')->map(fn ($id) => (int) $id)->all();
+
+        $retiradas = array_values(array_diff($actuales, $solicitadas));
+        $nuevas = array_values(array_diff($solicitadas, $actuales));
+
+        if ($retiradas !== []) {
+            $usuario->categoriasCapacitadas()->detach($retiradas);
+        }
+
+        if ($nuevas !== []) {
+            $usuario->categoriasCapacitadas()->attach($nuevas, ['otorgada_por' => $admin->id]);
+        }
     }
 }

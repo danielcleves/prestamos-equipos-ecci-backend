@@ -51,8 +51,11 @@ Cada equipo en `data` (o en el detalle puntual) expone los siguientes campos (pa
   "nombre": "Portátil Dell Latitude 3420",
   "categoria": {
     "id": 1,
-    "nombre": "Portátil"
+    "nombre": "Portátil",
+    "nivel_restriccion": 0,
+    "requiere_capacitacion": false
   },
+  "usuario_capacitado": true,
   "descripcion": "Intel Core i5, 16GB RAM, SSD 512GB",
   "disponible": true,
   "puede_solicitarse": true,
@@ -69,6 +72,8 @@ Cada equipo en `data` (o en el detalle puntual) expone los siguientes campos (pa
 - `estado_disponibilidad` (string): Código de estado de disponibilidad para la interfaz:
   - `"disponible"` si `estado === 'disponible'`
   - `"no_disponible"` si el equipo no está disponible (`en_prestamo`, `mantenimiento`, `dado_de_baja`)
+- `categoria.requiere_capacitacion` (boolean): `true` si la categoría exige capacitación para solicitar sus equipos (RN-01). Lo configura el admin con `PATCH /api/categorias/{categoria}/restriccion`.
+- `usuario_capacitado` (boolean): `true` si el **usuario autenticado** puede pedir el equipo en lo que toca a la capacitación: la categoría no la exige o el usuario está capacitado en **esa** categoría (la capacitación en otra categoría no cuenta). No reemplaza la validación del backend: si es `false`, `POST /api/prestamos` responde `422` en `usuario_id` con «Debes estar capacitado en «{categoría}» para solicitar este equipo.».
 - `observaciones` (string|null, condicional): Campo interno de uso exclusivo para personal administrativo (`admin` y `encargado`). Para el rol `usuario` (solicitante) y cualquier usuario sin rol administrativo, este campo **no existe en el JSON** (no se envía ni como `null`). Toda la información destinada al solicitante se detalla en `descripcion`.
 
 > [!IMPORTANT]

@@ -25,8 +25,10 @@ class StoreUserRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
-            // RN-01: requisito de capacitación (por defecto, capacitado).
-            'capacitado' => ['sometimes', 'boolean'],
+            // RN-01: ids de las categorías en las que queda capacitado
+            // (por defecto, ninguna).
+            'capacitaciones' => ['sometimes', 'array'],
+            'capacitaciones.*' => ['integer', 'distinct', 'exists:categorias,id'],
         ];
     }
 
@@ -44,6 +46,22 @@ class StoreUserRequest extends FormRequest
             'role.exists' => $disponibles === []
                 ? 'El rol «:input» no existe.'
                 : 'El rol «:input» no existe. Roles disponibles: '.implode(', ', $disponibles).'.',
+            ...self::mensajesCapacitaciones(),
+        ];
+    }
+
+    /**
+     * Mensajes de 'capacitaciones' (RN-01), compartidos con UpdateUserRequest.
+     *
+     * @return array<string, string>
+     */
+    public static function mensajesCapacitaciones(): array
+    {
+        return [
+            'capacitaciones.array' => 'Las capacitaciones deben ser una lista de ids de categoría.',
+            'capacitaciones.*.integer' => 'Cada capacitación debe ser el id numérico de una categoría.',
+            'capacitaciones.*.distinct' => 'La categoría «:input» está repetida en las capacitaciones.',
+            'capacitaciones.*.exists' => 'La categoría «:input» no existe.',
         ];
     }
 }

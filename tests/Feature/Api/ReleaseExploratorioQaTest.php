@@ -5,7 +5,6 @@ namespace Tests\Feature\Api;
 use App\Enums\CondicionEquipo;
 use App\Enums\EstadoPrestamo;
 use App\Models\Categoria;
-use App\Models\Configuracion;
 use App\Models\Equipo;
 use App\Models\Incidencia;
 use App\Models\Prestamo;
@@ -644,21 +643,25 @@ class ReleaseExploratorioQaTest extends TestCase
     }
 
     /**
-     * TC-SRV-070 · BUG-0010 · RN-01: si la capacitación pasa a ser exigible
-     * después de aprobar, el solicitante no capacitado no recibe el equipo.
+     * TC-SRV-070 · BUG-0010 · RN-01: si la categoría del equipo pasa a exigir
+     * capacitación después de aprobar, el solicitante no capacitado en ella
+     * no recibe el equipo. (Antes el requisito era un parámetro global; desde
+     * la capacitación por categoría lo decide cada categoría.)
      */
     public function test_la_capacitacion_exigida_despues_de_aprobar_bloquea_la_entrega(): void
     {
         $solicitante = $this->usuario('estudiante');
-        User::whereKey($solicitante->id)->update(['capacitado' => false]);
         [$prestamo, $equipo] = $this->prestamoAprobado($solicitante);
 
-        Configuracion::establecer('elegibilidad.requiere_capacitacion', true);
+        $equipo->categoria->update(['requiere_capacitacion' => true]);
 
         $response = $this->entregar($prestamo);
 
         $response->assertStatus(422)->assertJsonValidationErrors(['usuario_id']);
-        $this->assertStringContainsString('capacitado', $response->json('errors.usuario_id.0'));
+        $this->assertSame(
+            "No se puede entregar el equipo: Debes estar capacitado en «{$equipo->categoria->nombre}» para solicitar este equipo.",
+            $response->json('errors.usuario_id.0')
+        );
 
         $this->assertSame(EstadoPrestamo::Aprobado, $prestamo->fresh()->estado);
         $this->assertSame(Equipo::ESTADO_DISPONIBLE, $equipo->fresh()->estado);

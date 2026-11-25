@@ -35,6 +35,25 @@ Los roles iniciales los crea `database/seeders/RoleSeeder.php` de forma
 idempotente (`firstOrCreate`, sin pisar cupos ajustados). Detalle de la API en
 [`docs/api/roles.md`](api/roles.md).
 
+## Capacitación por categoría (25 nov 2026 — RN-01)
+
+Pedido del PO: «si estás capacitado para un router no te da la capacitación
+para un servidor».
+
+- La capacitación es **por categoría**: tabla `capacitaciones` (`user_id`,
+  `categoria_id`, `otorgada_por`, timestamps; única por usuario y categoría).
+  No vence; `created_at` es la fecha en que se otorgó.
+- Cada categoría decide si la exige (`categorias.requiere_capacitacion`,
+  `false` por defecto). No hay excepción para el personal administrativo.
+- Se retiraron `users.capacitado` y el parámetro global
+  `elegibilidad.requiere_capacitacion`. Al migrar **nadie queda capacitado**
+  (los valores de `capacitado` no se trasladan): el admin otorga cada
+  capacitación desde el CRUD de usuarios.
+- La entrega revalida la elegibilidad (BUG-0010), así que revocar la
+  capacitación o activar el requisito después de aprobar frena la entrega.
+
+Detalle de la API en [`docs/api/usuarios.md`](api/usuarios.md).
+
 ## Modelo de datos — alcance funcional (cerrado por el PO, 2026-09-05)
 
 | Tabla / funcionalidad | Decisión | Nota |

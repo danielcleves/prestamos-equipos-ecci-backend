@@ -29,8 +29,10 @@ class UpdateUserRequest extends FormRequest
             // Contrasena opcional: solo se cambia si se manda un valor.
             'password' => ['sometimes', 'nullable', 'string', 'min:8'],
             'role' => ['sometimes', 'required', 'string', Rule::exists('roles', 'name')],
-            // RN-01: requisito de capacitación.
-            'capacitado' => ['sometimes', 'boolean'],
+            // RN-01: lista completa de categorías en las que está
+            // capacitado; si viene, reemplaza la actual (sync).
+            'capacitaciones' => ['sometimes', 'array'],
+            'capacitaciones.*' => ['integer', 'distinct', 'exists:categorias,id'],
         ];
     }
 
@@ -47,6 +49,7 @@ class UpdateUserRequest extends FormRequest
             'role.exists' => $disponibles === []
                 ? 'El rol «:input» no existe.'
                 : 'El rol «:input» no existe. Roles disponibles: '.implode(', ', $disponibles).'.',
+            ...StoreUserRequest::mensajesCapacitaciones(),
         ];
     }
 }

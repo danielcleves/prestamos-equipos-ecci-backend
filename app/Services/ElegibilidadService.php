@@ -18,7 +18,8 @@ use Illuminate\Validation\ValidationException;
  *  - el usuario tiene una sanción activa y vigente (RN-04);
  *  - tiene un préstamo entregado y vencido;
  *  - hay una incidencia abierta que todavía lo restringe (RN-08);
- *  - se exige capacitación y el usuario no está capacitado;
+ *  - la categoría del equipo exige capacitación y el usuario no está
+ *    capacitado en esa categoría (la de otra categoría no sirve);
  *  - la categoría del equipo es de nivel 2 y el usuario no es personal.
  */
 class ElegibilidadService
@@ -76,13 +77,16 @@ class ElegibilidadService
             ]);
         }
 
-        if ($this->parametros->requiereCapacitacion() && ! $usuario->capacitado) {
+        $categoria = $equipo->categoria;
+
+        // La capacitación es por categoría y aplica también al personal
+        // administrativo. Al entregar se vuelve a validar (BUG-0010), así que
+        // revocarla después de aprobar frena la entrega.
+        if ($categoria?->requiere_capacitacion && ! $usuario->estaCapacitadoEn($categoria)) {
             throw ValidationException::withMessages([
-                'usuario_id' => 'Debes estar capacitado para solicitar préstamos.',
+                'usuario_id' => "Debes estar capacitado en «{$categoria->nombre}» para solicitar este equipo.",
             ]);
         }
-
-        $categoria = $equipo->categoria;
 
         if ($categoria !== null && $categoria->esSoloPersonal() && ! $usuario->esPersonalAdministrativo()) {
             throw ValidationException::withMessages([

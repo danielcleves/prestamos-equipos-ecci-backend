@@ -38,12 +38,14 @@ class RegistroTest extends TestCase
     {
         $this->postJson('/api/register', $this->payload('nuevo@ecci.edu.co'))
             ->assertCreated()
-            ->assertJsonPath('user.email', 'nuevo@ecci.edu.co');
+            ->assertJsonPath('user.email', 'nuevo@ecci.edu.co')
+            // RN-01: el auto-registro no otorga capacitaciones.
+            ->assertJsonPath('user.capacitaciones', []);
 
         $user = User::where('email', 'nuevo@ecci.edu.co')->firstOrFail();
 
         $this->assertTrue($user->is_active);
-        $this->assertTrue($user->capacitado);
+        $this->assertSame([], $user->idsCategoriasCapacitadas());
         $this->assertTrue($user->hasRole('estudiante'));
     }
 

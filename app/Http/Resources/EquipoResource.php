@@ -8,6 +8,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class EquipoResource extends JsonResource
 {
     /**
+     * Clave del atributo de la petición donde se guardan los ids de las
+     * categorías del usuario autenticado: así un listado consulta una sola
+     * vez, sin importar cuántos equipos pinte.
+     */
+    private const CACHE_CAPACITACIONES = 'equipo_resource.categorias_capacitadas';
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
@@ -24,7 +31,15 @@ class EquipoResource extends JsonResource
                 // RN-01 / RN-03: 0 libre, 1 requiere autorización, 2 solo
                 // personal administrativo.
                 'nivel_restriccion' => (int) $this->categoria->nivel_restriccion,
+                // RN-01: exige capacitación en la categoría para solicitar.
+                'requiere_capacitacion' => (bool) $this->categoria->requiere_capacitacion,
             ]),
+            // RN-01: si el usuario autenticado puede pedirlo por capacitación
+            // (la categoría no la exige o está capacitado en ella).
+            'usuario_capacitado' => $this->whenLoaded(
+                'categoria',
+                fn () => $this->usuarioCapacitado($request)
+            ),
             // RN-06: solo se expone en el detalle del equipo, donde el
             // controlador calcula el límite según categoría y rol. En los
             // listados (o anidado en un préstamo) se omite para no multiplicar
@@ -42,5 +57,26 @@ class EquipoResource extends JsonResource
                 $this->observaciones
             ),
         ];
+    }
+
+    private function usuarioCapacitado(Request $request): bool
+    {
+        $categoria = $this->categoria;
+
+        if ($categoria === null || ! $categoria->requiere_capacitacion) {
+            return true;
+        }
+
+        $usuario = $request->user();
+
+        if ($usuario === null) {
+            return false;
+        }
+
+        if (! $request->attributes->has(self::CACHE_CAPACITACIONES)) {
+            $request->attributes->set(self::CACHE_CAPACITACIONES, $usuario->idsCategoriasCapacitadas());
+        }
+
+        return in_array((int) $categoria->id, $request->attributes->get(self::CACHE_CAPACITACIONES), true);
     }
 }

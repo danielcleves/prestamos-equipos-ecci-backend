@@ -7,13 +7,14 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'is_active', 'capacitado'])]
+#[Fillable(['name', 'email', 'password', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -31,7 +32,6 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
-            'capacitado' => 'boolean',
         ];
     }
 
@@ -95,5 +95,46 @@ class User extends Authenticatable
     public function incidencias(): HasMany
     {
         return $this->hasMany(Incidencia::class)->latest('id');
+    }
+
+    /**
+     * Categorías de equipo en las que el usuario está capacitado (RN-01).
+     * La fecha de la capacitación es el created_at del pivote y
+     * 'otorgada_por' el admin que la registró. No vence.
+     */
+    public function categoriasCapacitadas(): BelongsToMany
+    {
+        return $this->belongsToMany(Categoria::class, 'capacitaciones')
+            ->withPivot('otorgada_por')
+            ->withTimestamps();
+    }
+
+    /**
+     * Indica si el usuario está capacitado en la categoría (RN-01).
+     *
+     * Consulta siempre la base, aunque la relación venga cargada: la usa la
+     * elegibilidad, también al entregar (BUG-0010), y una capacitación
+     * revocada después de cargar el modelo debe contar.
+     */
+    public function estaCapacitadoEn(Categoria|int $categoria): bool
+    {
+        $categoriaId = $categoria instanceof Categoria ? $categoria->getKey() : $categoria;
+
+        return $this->categoriasCapacitadas()->whereKey($categoriaId)->exists();
+    }
+
+    /**
+     * Ids de las categorías en las que el usuario está capacitado. Se
+     * resuelve en memoria si la relación viene cargada.
+     *
+     * @return list<int>
+     */
+    public function idsCategoriasCapacitadas(): array
+    {
+        $ids = $this->relationLoaded('categoriasCapacitadas')
+            ? $this->categoriasCapacitadas->modelKeys()
+            : $this->categoriasCapacitadas()->pluck('categorias.id')->all();
+
+        return array_map('intval', $ids);
     }
 }

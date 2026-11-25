@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['nombre', 'nivel_restriccion'])]
+#[Fillable(['nombre', 'nivel_restriccion', 'requiere_capacitacion'])]
 class Categoria extends Model
 {
     /** @use HasFactory<CategoriaFactory> */
@@ -36,6 +36,7 @@ class Categoria extends Model
     {
         return [
             'nivel_restriccion' => 'integer',
+            'requiere_capacitacion' => 'boolean',
         ];
     }
 

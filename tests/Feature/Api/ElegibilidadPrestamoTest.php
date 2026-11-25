@@ -186,26 +186,29 @@ class ElegibilidadPrestamoTest extends TestCase
         $this->assertStringContainsString('3 día(s)', $response->json('errors.usuario_id.0'));
     }
 
-    public function test_capacitacion_exigida_bloquea_al_usuario_no_capacitado(): void
+    public function test_capacitacion_exigida_por_la_categoria_bloquea_al_usuario_no_capacitado(): void
     {
-        $this->parametro('elegibilidad.requiere_capacitacion', true);
-        $usuario = User::factory()->create(['capacitado' => false]);
-        $usuario->assignRole('estudiante');
-
-        $response = $this->actingAs($usuario, 'sanctum')
-            ->postJson('/api/prestamos', $this->payload($this->equipo()));
-
-        $response->assertStatus(422)->assertJsonValidationErrors(['usuario_id']);
-        $this->assertStringContainsString('capacitado', $response->json('errors.usuario_id.0'));
-    }
-
-    public function test_capacitacion_exigida_permite_al_usuario_capacitado(): void
-    {
-        $this->parametro('elegibilidad.requiere_capacitacion', true);
+        $categoria = Categoria::factory()->requiereCapacitacion()->create(['nombre' => 'Routers']);
         $usuario = $this->solicitante();
 
+        $response = $this->actingAs($usuario, 'sanctum')
+            ->postJson('/api/prestamos', $this->payload($this->equipo($categoria)));
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['usuario_id']);
+        $this->assertSame(
+            'Debes estar capacitado en «Routers» para solicitar este equipo.',
+            $response->json('errors.usuario_id.0')
+        );
+    }
+
+    public function test_capacitacion_exigida_por_la_categoria_permite_al_usuario_capacitado_en_ella(): void
+    {
+        $categoria = Categoria::factory()->requiereCapacitacion()->create();
+        $usuario = User::factory()->capacitadoEn($categoria)->create();
+        $usuario->assignRole('estudiante');
+
         $this->actingAs($usuario, 'sanctum')
-            ->postJson('/api/prestamos', $this->payload($this->equipo()))
+            ->postJson('/api/prestamos', $this->payload($this->equipo($categoria)))
             ->assertStatus(201);
     }
 

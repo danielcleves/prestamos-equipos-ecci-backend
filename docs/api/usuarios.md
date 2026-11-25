@@ -11,7 +11,7 @@ gestionar usuarios y roles").
 | `GET` | `/api/usuarios` | Lista usuarios, paginada (`?per_page=`, default 15, máx 100) |
 | `POST` | `/api/usuarios` | Registra un usuario nuevo (requiere `role`) |
 | `GET` | `/api/usuarios/{usuario}` | Consulta un usuario puntual |
-| `PUT` / `PATCH` | `/api/usuarios/{usuario}` | Modifica nombre, correo, contraseña y/o rol |
+| `PUT` / `PATCH` | `/api/usuarios/{usuario}` | Modifica nombre, correo, contraseña, rol y/o capacitaciones |
 | `PATCH` | `/api/usuarios/{usuario}/activar` | Reactiva la cuenta |
 | `PATCH` | `/api/usuarios/{usuario}/desactivar` | Desactiva la cuenta (bloquea el login) |
 | `GET` | `/api/usuarios/{usuario}/sanciones` | Sanciones por mora del usuario (RN-04), paginadas; activas primero. También para `encargado` |
@@ -34,6 +34,46 @@ préstamos vivos (RN-02).
   `docs/api/autenticacion.md`), aunque su token previo siga siendo válido
   hasta que expire o se revoque — desactivar no cierra sesiones activas.
 
+## Capacitación por categoría (RN-01)
+
+La capacitación es **por categoría de equipo**: estar capacitado en
+«Routers» no habilita «Servidores». Cada categoría decide si la exige
+(`requiere_capacitacion`, ver más abajo); si la exige y el usuario no está
+capacitado en ella, `POST /api/prestamos` (y la entrega) responde `422` en
+`usuario_id` con «Debes estar capacitado en «{categoría}» para solicitar este
+equipo.». No hay excepción para `admin` ni `encargado`.
+
+- **`capacitaciones`** (opcional en `POST` y `PUT/PATCH`): lista de ids de
+  categoría (`array`; cada uno entero, sin repetir y existente en
+  `categorias`, si no `422`).
+  - En `POST`, si no viene, el usuario queda **sin capacitaciones**.
+  - En `PUT/PATCH`, si viene, **reemplaza** la lista completa (`[]` las
+    retira todas): las que ya tenía conservan su fecha y quién las otorgó, y
+    las nuevas quedan a nombre del admin autenticado. Si no viene, no se
+    tocan.
+- La respuesta de usuario trae **`capacitaciones`**: lista ordenada por
+  nombre de `{ categoria_id, nombre, otorgada_en }` (`otorgada_en` en ISO 8601,
+  hora de Colombia). La capacitación no vence.
+- El auto-registro (`POST /api/register`) crea la cuenta sin capacitaciones.
+- Reemplaza al booleano `capacitado` (retirado; si se envía, se ignora) y al
+  parámetro global `elegibilidad.requiere_capacitacion` (retirado; `PUT
+  /api/configuracion` lo rechaza con `422`).
+
+**Exigir capacitación en una categoría** (solo `admin`):
+
+```sh
+curl -i -X PATCH http://localhost:8000/api/categorias/4/restriccion \
+  -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" \
+  -d '{"requiere_capacitacion": true}'
+```
+
+Acepta `nivel_restriccion` (0, 1 o 2) y/o `requiere_capacitacion` (booleano);
+ambos son opcionales pero debe venir al menos uno (`422` si no). Responde la
+categoría con `id`, `nombre`, `nivel_restriccion` y `requiere_capacitacion`.
+`GET /api/configuracion` expone `requiere_capacitacion` en cada elemento de
+`data.categorias`.
+
 ## Ejemplos
 
 **Registrar usuario**
@@ -46,7 +86,8 @@ curl -i -X POST http://localhost:8000/api/usuarios \
     "name": "Ana Pérez",
     "email": "ana@ecci.edu.co",
     "password": "password123",
-    "role": "encargado"
+    "role": "encargado",
+    "capacitaciones": [4]
   }'
 ```
 
@@ -59,7 +100,9 @@ Respuesta (`201`):
     "name": "Ana Pérez",
     "email": "ana@ecci.edu.co",
     "is_active": true,
-    "capacitado": true,
+    "capacitaciones": [
+      { "categoria_id": 4, "nombre": "Routers", "otorgada_en": "2026-11-25T10:30:00-05:00" }
+    ],
     "roles": ["encargado"],
     "rol_principal": "encargado",
     "rol_etiqueta": "Personal de préstamo",

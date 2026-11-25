@@ -21,4 +21,14 @@ class CategoriaFactory extends Factory
             'nombre' => fake()->unique()->word(),
         ];
     }
+
+    /**
+     * RN-01: la categoría exige capacitación para solicitar sus equipos.
+     */
+    public function requiereCapacitacion(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'requiere_capacitacion' => true,
+        ]);
+    }
 }
