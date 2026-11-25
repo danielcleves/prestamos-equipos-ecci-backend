@@ -72,6 +72,23 @@ class User extends Authenticatable
     }
 
     /**
+     * Sanción vigente que bloquea al usuario (RN-04), o null si no tiene.
+     *
+     * Usa la misma definición que ElegibilidadService: cuenta como activa solo
+     * si el estado guardado es 'activa' y fecha_fin no ha pasado. Si la
+     * relación 'sanciones' viene cargada se filtra en memoria, para que los
+     * listados paginados no disparen una consulta por fila.
+     */
+    public function sancionVigente(): ?Sancion
+    {
+        if ($this->relationLoaded('sanciones')) {
+            return $this->sanciones->first(fn (Sancion $sancion) => $sancion->estaVigente());
+        }
+
+        return $this->sanciones()->vigentes()->first();
+    }
+
+    /**
      * Incidencias en las que este usuario es el solicitante restringido
      * (RN-08).
      */

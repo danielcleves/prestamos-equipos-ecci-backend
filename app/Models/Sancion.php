@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\FechaNegocio;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -84,5 +85,26 @@ class Sancion extends Model
     public function estaVigente(): bool
     {
         return $this->estado === self::ESTADO_ACTIVA && $this->fecha_fin !== null && $this->fecha_fin->greaterThanOrEqualTo(now());
+    }
+
+    /**
+     * Días de sanción que faltan para que venza (0 si ya venció).
+     *
+     * Solo lectura: no altera el estado persistido. Se cuenta en días de
+     * calendario de la zona de negocio, igual que la mora (BUG-0006), y una
+     * sanción que vence hoy todavía bloquea, así que cuenta como 1 día.
+     */
+    public function diasRestantes(): int
+    {
+        if (! $this->estaVigente()) {
+            return 0;
+        }
+
+        $zona = FechaNegocio::zonaNegocio();
+
+        $hoy = now()->setTimezone($zona)->startOfDay();
+        $fin = $this->fecha_fin->copy()->setTimezone($zona)->startOfDay();
+
+        return max(1, (int) $hoy->diffInDays($fin));
     }
 }

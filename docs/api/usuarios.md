@@ -14,6 +14,7 @@ gestionar usuarios y roles").
 | `PUT` / `PATCH` | `/api/usuarios/{usuario}` | Modifica nombre, correo, contraseña y/o rol |
 | `PATCH` | `/api/usuarios/{usuario}/activar` | Reactiva la cuenta |
 | `PATCH` | `/api/usuarios/{usuario}/desactivar` | Desactiva la cuenta (bloquea el login) |
+| `GET` | `/api/usuarios/{usuario}/sanciones` | Sanciones por mora del usuario (RN-04), paginadas; activas primero. También para `encargado` |
 
 ## Roles disponibles
 
@@ -61,7 +62,8 @@ Respuesta (`201`):
     "capacitado": true,
     "roles": ["encargado"],
     "rol_principal": "encargado",
-    "rol_etiqueta": "Personal de préstamo"
+    "rol_etiqueta": "Personal de préstamo",
+    "sancion_activa": null
   }
 }
 ```
@@ -103,3 +105,38 @@ curl -i "http://localhost:8000/api/usuarios?per_page=5" \
   desactivar en su lugar. Si más adelante se pide eliminar, lo más prudente
   es soft delete (`deleted_at`) en vez de borrado físico, para no dejar
   huérfano el historial que un usuario pueda tener (préstamos, etc.).
+
+## Sanciones por mora (RN-04)
+
+`GET /api/usuarios/{usuario}/sanciones` devuelve las sanciones del usuario,
+paginadas (`?per_page=`, default 15, máx 100) y con las **activas primero**
+(`estado = activa` y `fecha_fin` no vencida). Disponible para `admin` y
+`encargado`.
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "user_id": 7,
+      "prestamo_id": 12,
+      "motivo": "mora",
+      "dias_retraso": 1,
+      "dias_sancion": 3,
+      "dias_restantes": 3,
+      "fecha_inicio": "2026-12-09T12:00:00-05:00",
+      "fecha_fin": "2026-12-12T12:00:00-05:00",
+      "estado": "activa",
+      "vigente": true,
+      "created_at": "2026-12-09T12:00:00-05:00"
+    }
+  ],
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 15, "total": 1 }
+}
+```
+
+Cada usuario trae además **`sancion_activa`**: el mismo objeto (sin el
+`meta`) de su sanción vigente, o `null` si no tiene. `dias_restantes` se
+cuenta en días calendario de Colombia y vale al menos 1 si la sanción vence
+hoy. Una sanción vencida nunca vuelve a `null` en `estado`: se considera
+cumplida al consultarla, sin reescribir la fila.
