@@ -82,12 +82,16 @@ class SolicitudPrestamoService
                 ]);
             }
 
+            // BUG-0011: FechaNegocio::parsear() ya devuelve UTC, pero un
+            // CarbonInterface puede venir en la zona de negocio. Se normaliza
+            // sobre una copia para no mutar el objeto del llamador y para que
+            // el instante guardado no dependa de la zona con la que se construyó.
             $fechaInicio = $data['fecha_inicio'] instanceof CarbonInterface
-                ? $data['fecha_inicio']
+                ? $data['fecha_inicio']->copy()->setTimezone('UTC')
                 : FechaNegocio::parsear($data['fecha_inicio']);
 
             $fechaDevolucionEstimada = $data['fecha_devolucion_estimada'] instanceof CarbonInterface
-                ? $data['fecha_devolucion_estimada']
+                ? $data['fecha_devolucion_estimada']->copy()->setTimezone('UTC')
                 : FechaNegocio::parsear($data['fecha_devolucion_estimada']);
 
             // 6. No debe existir un préstamo solicitado, aprobado o entregado para ese equipo con fechas que se crucen
