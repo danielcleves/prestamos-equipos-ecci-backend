@@ -13,16 +13,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Regresiones de los defectos abiertos en la validación de release
- * develop → main (24 nov 2026): BUG-0005 … BUG-0008 (TC-SRV-048 … TC-SRV-053).
+ * Regresiones de los defectos de la validación de release develop → main
+ * (24 nov 2026): BUG-0005 … BUG-0008 (TC-SRV-048 … TC-SRV-053).
  *
- * Cada prueba describe el comportamiento CORRECTO y hoy falla contra develop.
- * Se marcan como omitidas para no dejar en rojo el check obligatorio
- * «Pruebas (PHPUnit)»; quien corrija el defecto debe borrar la llamada a
- * pendienteDeCorreccion() de la prueba correspondiente.
- *
- * Para verlas fallar contra el código actual:
- *   QA_BUGS_ABIERTOS=1 php artisan test --filter=DefectosReleaseQaTest
+ * Las cuatro causas están corregidas desde el PR #25, así que las pruebas se
+ * ejecutan sin omisión: si una vuelve a fallar, el defecto regresó.
  *
  * Detalle: Documentación/05 - Calidad y pruebas/Release develop-main/.
  */
@@ -40,13 +35,6 @@ class DefectosReleaseQaTest extends TestCase
     {
         Carbon::setTestNow();
         parent::tearDown();
-    }
-
-    private function pendienteDeCorreccion(string $motivo): void
-    {
-        if (! getenv('QA_BUGS_ABIERTOS')) {
-            $this->markTestSkipped($motivo);
-        }
     }
 
     private function usuario(string $rol): User
@@ -78,8 +66,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-048 · BUG-0005 · RN-01 / HU-02: un solicitante desactivado no puede seguir solicitando con su token. */
     public function test_un_solicitante_desactivado_no_puede_solicitar_con_un_token_previo(): void
     {
-        $this->pendienteDeCorreccion('BUG-0005: desactivar no revoca los tokens Sanctum ni se revisa is_active en cada petición.');
-
         $estudiante = $this->usuario('estudiante');
         $token = $this->desactivarConTokenPrevio($estudiante);
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
@@ -98,8 +84,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-049 · BUG-0005 · HU-02: un admin desactivado no puede seguir administrando con su token. */
     public function test_un_admin_desactivado_no_puede_crear_usuarios_con_un_token_previo(): void
     {
-        $this->pendienteDeCorreccion('BUG-0005: desactivar no revoca los tokens Sanctum ni se revisa is_active en cada petición.');
-
         $adminDesactivado = $this->usuario('admin');
         $token = $this->desactivarConTokenPrevio($adminDesactivado);
 
@@ -117,8 +101,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-050 · BUG-0006 · RN-04: los días de mora se cuentan en días calendario de Colombia, no de UTC. */
     public function test_los_dias_de_mora_se_cuentan_en_la_zona_horaria_de_negocio(): void
     {
-        $this->pendienteDeCorreccion('BUG-0006: SancionService::diasDeRetraso() usa startOfDay() en UTC.');
-
         // 13 dic 00:30 en Bogotá = 13 dic 05:30 UTC.
         Carbon::setTestNow(Carbon::parse('2026-12-13 05:30:00', 'UTC'));
 
@@ -148,8 +130,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-051 · BUG-0007 · RN-04: la escala de mora rechaza un tramo con «hasta» menor que «desde». */
     public function test_la_escala_de_mora_rechaza_un_tramo_con_hasta_menor_que_desde(): void
     {
-        $this->pendienteDeCorreccion('BUG-0007: UpdateConfiguracionRequest no valida la coherencia de los tramos de mora.escala.');
-
         $this->actingAs($this->usuario('admin'), 'sanctum')
             ->putJson('/api/configuracion', ['parametros' => ['mora.escala' => [
                 ['desde' => 5, 'hasta' => 2, 'dias_sancion' => 3],
@@ -161,8 +141,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-052 · BUG-0007 · RN-04: la escala de mora rechaza huecos que dejarían retrasos sin sanción. */
     public function test_la_escala_de_mora_rechaza_huecos_entre_tramos(): void
     {
-        $this->pendienteDeCorreccion('BUG-0007: UpdateConfiguracionRequest no valida la coherencia de los tramos de mora.escala.');
-
         // Sin el tramo 3–5, un retraso de 3, 4 o 5 días no tendría sanción.
         $this->actingAs($this->usuario('admin'), 'sanctum')
             ->putJson('/api/configuracion', ['parametros' => ['mora.escala' => [
@@ -176,8 +154,6 @@ class DefectosReleaseQaTest extends TestCase
     /** TC-SRV-053 · BUG-0008 · RN-06: la duración por categoría rechaza ids de categoría inexistentes. */
     public function test_la_duracion_por_categoria_rechaza_una_categoria_inexistente(): void
     {
-        $this->pendienteDeCorreccion('BUG-0008: duracion.categorias no valida que la categoría exista (cupos.roles y duracion.roles_extra sí lo hacen).');
-
         $this->actingAs($this->usuario('admin'), 'sanctum')
             ->putJson('/api/configuracion', ['parametros' => ['duracion.categorias' => ['999999' => 5]]])
             ->assertStatus(422)
