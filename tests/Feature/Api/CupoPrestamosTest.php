@@ -56,8 +56,8 @@ class CupoPrestamosTest extends TestCase
 
     public function test_el_cupo_exacto_permite_la_siguiente_solicitud(): void
     {
-        $this->parametro('cupos.roles', ['usuario' => 2, 'encargado' => 5, 'admin' => 10]);
-        $usuario = $this->usuario('usuario');
+        $this->parametro('cupos.roles', ['estudiante' => 2, 'encargado' => 5, 'admin' => 10]);
+        $usuario = $this->usuario('estudiante');
         $this->prestamoVivo($usuario);
 
         // Con cupo 2 y 1 préstamo vivo, la segunda solicitud entra justo.
@@ -70,8 +70,8 @@ class CupoPrestamosTest extends TestCase
 
     public function test_un_prestamo_por_encima_del_cupo_es_rechazado_con_el_cupo_en_el_mensaje(): void
     {
-        $this->parametro('cupos.roles', ['usuario' => 2, 'encargado' => 5, 'admin' => 10]);
-        $usuario = $this->usuario('usuario');
+        $this->parametro('cupos.roles', ['estudiante' => 2, 'encargado' => 5, 'admin' => 10]);
+        $usuario = $this->usuario('estudiante');
         $this->prestamoVivo($usuario);
         $this->prestamoVivo($usuario);
 
@@ -85,9 +85,9 @@ class CupoPrestamosTest extends TestCase
 
     public function test_el_cupo_cambia_segun_el_rol_del_solicitante(): void
     {
-        $this->parametro('cupos.roles', ['usuario' => 1, 'encargado' => 2, 'admin' => 10]);
+        $this->parametro('cupos.roles', ['estudiante' => 1, 'encargado' => 2, 'admin' => 10]);
 
-        $usuario = $this->usuario('usuario');
+        $usuario = $this->usuario('estudiante');
         $encargado = $this->usuario('encargado');
         $this->prestamoVivo($usuario);
         $this->prestamoVivo($encargado);

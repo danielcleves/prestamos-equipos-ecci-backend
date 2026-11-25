@@ -120,7 +120,7 @@ class RechazoPrestamoTest extends TestCase
     public function test_rol_usuario_recibe_403_al_intentar_rechazar(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $prestamo = Prestamo::factory()->solicitado()->create();
 
@@ -233,7 +233,7 @@ class RechazoPrestamoTest extends TestCase
     public function test_tras_rechazo_el_mismo_usuario_puede_volver_a_solicitar_ese_equipo_en_las_mismas_fechas(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');
@@ -277,7 +277,7 @@ class RechazoPrestamoTest extends TestCase
     public function test_un_prestamo_rechazado_no_cuenta_para_el_limite_de_prestamos_activos_del_usuario(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');

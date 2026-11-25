@@ -28,7 +28,7 @@ class ContratoPrestamoResourceTest extends TestCase
         $encargado->assignRole('encargado');
 
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $equipo1 = Equipo::factory()->create();
         $equipo2 = Equipo::factory()->create();
@@ -131,7 +131,7 @@ class ContratoPrestamoResourceTest extends TestCase
     public function test_todas_las_respuestas_de_prestamo_tienen_mismo_conjunto_de_claves_para_rol_usuario(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');
@@ -207,7 +207,7 @@ class ContratoPrestamoResourceTest extends TestCase
         $encargado->assignRole('encargado');
 
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         // Creamos 10 préstamos con relaciones completas
         for ($i = 0; $i < 10; $i++) {

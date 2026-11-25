@@ -28,7 +28,7 @@ class RegresionReglasExistentesTest extends TestCase
     private function usuario(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('usuario');
+        $user->assignRole('estudiante');
 
         return $user;
     }

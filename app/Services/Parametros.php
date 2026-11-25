@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Configuracion;
+use App\Models\Rol;
 
 /**
  * Parámetros de negocio de la iteración 2 (RN-01, RN-02, RN-04, RN-06, RN-08).
@@ -11,6 +12,11 @@ use App\Models\Configuracion;
  * admin. Cuando una clave no está guardada se usa el valor por defecto del
  * contrato de diseño, de modo que la aplicación funciona igual con la tabla
  * vacía (por ejemplo, en pruebas o en una instalación recién migrada).
+ *
+ * Excepción: el cupo por rol (RN-02) no vive en 'configuraciones' sino en la
+ * tabla 'roles' (columna cupo_prestamos), porque el admin crea roles
+ * personalizados. Se sigue exponiendo como la clave virtual 'cupos.roles' para
+ * que GET/PUT /api/configuracion mantengan su contrato.
  *
  * La instancia cachea los valores en memoria: el contenedor crea una por
  * servicio que la inyecta, así que dentro de una misma operación no se repite
@@ -25,13 +31,10 @@ class Parametros
      *
      * @var array<string, array{tipo: string, grupo: string, descripcion: string, default: mixed}>
      */
+    /** Clave virtual del cupo por rol: se lee y escribe en la tabla 'roles'. */
+    public const CLAVE_CUPOS = 'cupos.roles';
+
     public const DEFINICIONES = [
-        'cupos.roles' => [
-            'tipo' => 'json',
-            'grupo' => 'cupos',
-            'descripcion' => 'Máximo de préstamos vivos por rol.',
-            'default' => ['usuario' => 3, 'encargado' => 5, 'admin' => 10],
-        ],
         'duracion.categorias' => [
             'tipo' => 'json',
             'grupo' => 'duracion',
@@ -42,7 +45,7 @@ class Parametros
             'tipo' => 'json',
             'grupo' => 'duracion',
             'descripcion' => 'Días adicionales de préstamo según el rol del solicitante.',
-            'default' => ['usuario' => 0, 'encargado' => 2, 'admin' => 3],
+            'default' => ['estudiante' => 0, 'encargado' => 2, 'admin' => 3],
         ],
         'mora.escala' => [
             'tipo' => 'json',
@@ -120,9 +123,19 @@ class Parametros
      */
     public function cupoActivo(string $rol): int
     {
-        $cupos = $this->valores()['cupos.roles'];
+        $cupos = $this->valores()[self::CLAVE_CUPOS];
 
-        return (int) ($cupos[$rol] ?? $cupos['usuario'] ?? 3);
+        if (isset($cupos[$rol])) {
+            return (int) $cupos[$rol];
+        }
+
+        // Rol desconocido (p. ej. borrado mientras había una sesión abierta):
+        // se aplica el cupo del rol predeterminado.
+        $predeterminado = Rol::predeterminado();
+
+        return $predeterminado !== null
+            ? (int) $predeterminado->cupo_prestamos
+            : Rol::CUPO_RESPALDO;
     }
 
     /**
@@ -230,6 +243,8 @@ class Parametros
         foreach (self::DEFINICIONES as $clave => $definicion) {
             $valores[$clave] = $definicion['default'];
         }
+
+        $valores[self::CLAVE_CUPOS] = Rol::mapaCupos()->all();
 
         foreach (Configuracion::query()->get(['clave', 'tipo', 'valor']) as $fila) {
             if (! isset(self::DEFINICIONES[$fila->clave])) {

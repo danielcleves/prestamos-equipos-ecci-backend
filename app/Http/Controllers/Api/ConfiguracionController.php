@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\UpdateConfiguracionRequest;
+use App\Http\Resources\RolResource;
 use App\Models\Categoria;
 use App\Models\Configuracion;
+use App\Models\Rol;
 use App\Services\Parametros;
 use Illuminate\Http\JsonResponse;
 
@@ -30,6 +32,10 @@ class ConfiguracionController extends Controller
                 'categorias' => Categoria::orderBy('id')
                     ->get(['id', 'nombre', 'nivel_restriccion'])
                     ->toArray(),
+                // RN-02/RN-06: catálogo de roles para pintar cupos y días
+                // extra de todos los roles, también los personalizados.
+                'roles' => RolResource::collection(Rol::withCount('users')->orderBy('id')->get())
+                    ->resolve(),
             ],
         ]);
     }
@@ -40,6 +46,15 @@ class ConfiguracionController extends Controller
     public function update(UpdateConfiguracionRequest $request): JsonResponse
     {
         foreach ($request->parametros() as $clave => $valor) {
+            if ($clave === Parametros::CLAVE_CUPOS) {
+                // RN-02: el cupo vive en la tabla de roles.
+                foreach ($valor as $rol => $cupo) {
+                    Rol::where('name', (string) $rol)->update(['cupo_prestamos' => (int) $cupo]);
+                }
+
+                continue;
+            }
+
             Configuracion::establecer($clave, $valor);
         }
 

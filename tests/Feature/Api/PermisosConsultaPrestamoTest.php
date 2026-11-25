@@ -27,7 +27,7 @@ class PermisosConsultaPrestamoTest extends TestCase
     private function solicitante(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('usuario');
+        $user->assignRole('estudiante');
 
         return $user;
     }

@@ -41,7 +41,7 @@ class MoraSancionTest extends TestCase
     private function prestamoEntregadoVencidoHace(int $dias): array
     {
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
 
@@ -70,7 +70,7 @@ class MoraSancionTest extends TestCase
     public function test_una_devolucion_en_fecha_no_genera_sancion(): void
     {
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
         $prestamo = Prestamo::factory()->entregado()->create([
             'usuario_id' => $solicitante->id,

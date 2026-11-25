@@ -2,23 +2,33 @@
 
 namespace Database\Seeders;
 
+use App\Models\Rol;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 
 class RoleSeeder extends Seeder
 {
     /**
-     * Roles oficiales del proyecto (decision cerrada, ver docs/decisiones.md).
-     * Los permisos de cada uno se definen aparte, cuando el equipo valide la
-     * matriz propuesta en ese mismo archivo — este seeder solo garantiza que
-     * los roles existan.
+     * Roles iniciales del proyecto.
+     *
+     * - admin y encargado son roles de sistema (permisos de personal).
+     * - estudiante es el rol de solicitante predeterminado (auto-registro).
+     *
+     * El admin puede crear más roles de solicitante (profesor, coordinador…)
+     * desde /api/roles, cada uno con su cupo (RN-02).
+     *
+     * firstOrCreate: nunca sobreescribe los cupos ni las etiquetas que el admin
+     * haya ajustado.
      */
-    private const ROLES = ['admin', 'encargado', 'usuario'];
+    private const ROLES = [
+        'admin' => ['etiqueta' => 'Administrador', 'cupo_prestamos' => 10, 'es_predeterminado' => false],
+        'encargado' => ['etiqueta' => 'Personal de préstamo', 'cupo_prestamos' => 5, 'es_predeterminado' => false],
+        'estudiante' => ['etiqueta' => 'Estudiante', 'cupo_prestamos' => 3, 'es_predeterminado' => true],
+    ];
 
     public function run(): void
     {
-        foreach (self::ROLES as $role) {
-            Role::firstOrCreate(['name' => $role]);
+        foreach (self::ROLES as $nombre => $atributos) {
+            Rol::firstOrCreate(['name' => $nombre, 'guard_name' => 'web'], $atributos);
         }
     }
 }

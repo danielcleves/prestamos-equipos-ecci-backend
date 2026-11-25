@@ -29,7 +29,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_usuario_autenticado_puede_solicitar_un_equipo_disponible(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $equipo = Equipo::factory()->create([
             'estado' => Equipo::ESTADO_DISPONIBLE,
@@ -66,7 +66,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_falla_sin_motivo_con_motivo_vacio_o_solo_espacios(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         $fechaInicio = now()->addDay()->toDateTimeString();
@@ -99,7 +99,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_solicitud_almacena_motivo_recortado_sin_espacios_en_los_extremos(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         $fechaInicio = now()->addDay()->setHour(10)->setMinute(0)->setSecond(0);
@@ -123,7 +123,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_de_equipo_dado_de_baja_con_mensaje_especifico(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DADO_DE_BAJA]);
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -145,7 +145,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_de_equipo_en_mantenimiento_con_mensaje_especifico(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_MANTENIMIENTO]);
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -167,7 +167,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_de_equipo_en_prestamo(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -189,7 +189,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_fechas_invalidas_o_en_el_pasado(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         // fecha_inicio en el pasado
@@ -212,7 +212,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_que_supera_duracion_maxima_dias(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         $fechaInicio = now()->addDay();
@@ -238,7 +238,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_acepta_solicitud_en_limite_de_duracion_maxima_dias_hasta_fin_del_dia(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         // Mismo escenario real del front: inicio a las 08:00 y devolución a las 18:00 del 7.º día posterior
@@ -259,9 +259,9 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_cuando_se_cruzan_las_fechas_con_otro_prestamo(): void
     {
         $usuario1 = User::factory()->create();
-        $usuario1->assignRole('usuario');
+        $usuario1->assignRole('estudiante');
         $usuario2 = User::factory()->create();
-        $usuario2->assignRole('usuario');
+        $usuario2->assignRole('estudiante');
 
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
@@ -293,7 +293,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_solicitud_cuando_el_usuario_supera_limite_de_activos(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         // Crear 3 préstamos activos para este usuario (máximo permitido)
         Prestamo::factory()->count(3)->create([
@@ -322,7 +322,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_valida_limite_de_activos_con_datos_frescos_de_la_base_de_datos(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
 
         // La instancia $usuario en memoria se creó antes.
@@ -356,7 +356,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_el_cliente_no_puede_fijar_fecha_solicitud_usuario_id_ni_estado(): void
     {
         $usuarioAutenticado = User::factory()->create();
-        $usuarioAutenticado->assignRole('usuario');
+        $usuarioAutenticado->assignRole('estudiante');
 
         $otroUsuario = User::factory()->create();
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_DISPONIBLE]);
@@ -385,9 +385,9 @@ class SolicitudPrestamoTest extends TestCase
     public function test_visibilidad_de_listado_por_rol(): void
     {
         $usuario1 = User::factory()->create();
-        $usuario1->assignRole('usuario');
+        $usuario1->assignRole('estudiante');
         $usuario2 = User::factory()->create();
-        $usuario2->assignRole('usuario');
+        $usuario2->assignRole('estudiante');
         $admin = User::factory()->create();
         $admin->assignRole('admin');
         $encargado = User::factory()->create();
@@ -418,9 +418,9 @@ class SolicitudPrestamoTest extends TestCase
     public function test_visibilidad_de_prestamo_individual_segun_politica(): void
     {
         $usuarioDueno = User::factory()->create();
-        $usuarioDueno->assignRole('usuario');
+        $usuarioDueno->assignRole('estudiante');
         $usuarioExtrano = User::factory()->create();
-        $usuarioExtrano->assignRole('usuario');
+        $usuarioExtrano->assignRole('estudiante');
         $admin = User::factory()->create();
         $admin->assignRole('admin');
 
@@ -478,7 +478,7 @@ class SolicitudPrestamoTest extends TestCase
 
         try {
             $usuario = User::factory()->create();
-            $usuario->assignRole('usuario');
+            $usuario->assignRole('estudiante');
             $equipo = Equipo::factory()->create();
 
             $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -506,7 +506,7 @@ class SolicitudPrestamoTest extends TestCase
 
         try {
             $usuario = User::factory()->create();
-            $usuario->assignRole('usuario');
+            $usuario->assignRole('estudiante');
             $equipo = Equipo::factory()->create();
 
             $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -533,7 +533,7 @@ class SolicitudPrestamoTest extends TestCase
 
         try {
             $usuario = User::factory()->create();
-            $usuario->assignRole('usuario');
+            $usuario->assignRole('estudiante');
             $equipo = Equipo::factory()->create();
 
             $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -559,7 +559,7 @@ class SolicitudPrestamoTest extends TestCase
 
         try {
             $usuario = User::factory()->create();
-            $usuario->assignRole('usuario');
+            $usuario->assignRole('estudiante');
             $equipo = Equipo::factory()->create();
 
             // Caso A: las 16:00 de hoy en Colombia (faltan 2 horas) se acepta
@@ -593,7 +593,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_fecha_sin_hora_con_422(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create();
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -610,7 +610,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_cadenas_relativas_con_422(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create();
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -627,7 +627,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rechaza_formato_con_barras_con_422(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create();
 
         $response = $this->actingAs($usuario, 'sanctum')->postJson('/api/prestamos', [
@@ -660,7 +660,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rol_usuario_en_detalle_y_listado_no_recibe_email_ni_roles_de_personal_ni_solicitante(): void
     {
         $usuario = User::factory()->create(['name' => 'Estudiante Prueba', 'email' => 'estudiante@ecci.edu.co']);
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $personalEntrega = User::factory()->create(['name' => 'Encargado Entrega', 'email' => 'entrega@ecci.edu.co']);
         $personalEntrega->assignRole('encargado');
@@ -716,7 +716,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rol_encargado_en_detalle_y_listado_recibe_email_de_solicitante_y_personal_reducido(): void
     {
         $usuario = User::factory()->create(['name' => 'Estudiante Prueba', 'email' => 'estudiante@ecci.edu.co']);
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $encargado = User::factory()->create(['name' => 'Encargado Auditor', 'email' => 'auditor@ecci.edu.co']);
         $encargado->assignRole('encargado');
@@ -736,7 +736,7 @@ class SolicitudPrestamoTest extends TestCase
             ->assertJsonPath('data.solicitante.name', 'Estudiante Prueba')
             ->assertJsonPath('data.solicitante.email', 'estudiante@ecci.edu.co')
             ->assertJsonPath('data.solicitante.is_active', true)
-            ->assertJsonPath('data.solicitante.roles', ['usuario']);
+            ->assertJsonPath('data.solicitante.roles', ['estudiante']);
 
         // usuario_entrega y usuario_recepcion: siempre reducidos (id y name)
         $this->assertSame(
@@ -762,7 +762,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_rol_usuario_no_recibe_observaciones_y_encargado_recibe_ambas(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');
@@ -790,7 +790,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_exceder_limite_de_solicitudes_por_minuto_devuelve_429(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         // Consumir los 10 intentos permitidos por minuto para este usuario
         for ($i = 0; $i < 10; $i++) {
@@ -806,7 +806,7 @@ class SolicitudPrestamoTest extends TestCase
 
         // Otro usuario autenticado no debe ser bloqueado por el límite del primero
         $otroUsuario = User::factory()->create();
-        $otroUsuario->assignRole('usuario');
+        $otroUsuario->assignRole('estudiante');
 
         $resOtro = $this->actingAs($otroUsuario, 'sanctum')->postJson('/api/prestamos', []);
         $this->assertNotEquals(429, $resOtro->status());
@@ -816,7 +816,7 @@ class SolicitudPrestamoTest extends TestCase
     public function test_created_at_y_updated_at_se_formatean_en_la_zona_de_negocio(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $prestamo = Prestamo::factory()->create([
             'usuario_id' => $usuario->id,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ConfiguracionController;
 use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\PrestamoController;
+use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,6 +40,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::get('/configuracion', [ConfiguracionController::class, 'show']);
     Route::put('/configuracion', [ConfiguracionController::class, 'update']);
     Route::patch('/categorias/{categoria}/restriccion', [CategoriaController::class, 'actualizarRestriccion']);
+
+    // RN-02: roles personalizados (estudiante, profesor, coordinador…) con
+    // su cupo de préstamos vivos.
+    Route::apiResource('roles', RolController::class)
+        ->parameters(['roles' => 'rol']);
 });
 
 // HU-03: catalogo de equipos. Consultar es para cualquier autenticado (lo

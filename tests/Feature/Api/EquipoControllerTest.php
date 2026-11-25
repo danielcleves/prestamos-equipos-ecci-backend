@@ -47,7 +47,7 @@ class EquipoControllerTest extends TestCase
     private function actingAsUsuario(): User
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         Sanctum::actingAs($usuario);
 

@@ -32,7 +32,7 @@ class UserTest extends TestCase
     public function test_es_personal_administrativo_devuelve_false_para_usuario_y_usuario_sin_rol(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $sinRol = User::factory()->create();
 

@@ -30,7 +30,7 @@ class ElegibilidadPrestamoTest extends TestCase
     private function solicitante(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('usuario');
+        $user->assignRole('estudiante');
 
         return $user;
     }
@@ -190,7 +190,7 @@ class ElegibilidadPrestamoTest extends TestCase
     {
         $this->parametro('elegibilidad.requiere_capacitacion', true);
         $usuario = User::factory()->create(['capacitado' => false]);
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $response = $this->actingAs($usuario, 'sanctum')
             ->postJson('/api/prestamos', $this->payload($this->equipo()));

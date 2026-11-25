@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginRequest;
 use App\Http\Requests\Api\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,7 +50,7 @@ class AuthController extends Controller
 
     /**
      * Auto-registro de un solicitante. El correo debe pertenecer a un dominio
-     * o dirección autorizada en la configuración; el rol siempre es `usuario`.
+     * o dirección autorizada en la configuración; recibe el rol predeterminado.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
@@ -63,7 +64,9 @@ class AuthController extends Controller
             'capacitado' => true,
         ]);
 
-        $user->assignRole('usuario');
+        // RN-02: el rol lo decide el admin (rol predeterminado, por defecto
+        // «estudiante»); nunca el formulario.
+        $user->assignRole(Rol::predeterminado()?->name ?? Rol::PREDETERMINADO);
 
         return response()->json([
             'message' => 'Cuenta creada correctamente. Ya puedes iniciar sesión.',

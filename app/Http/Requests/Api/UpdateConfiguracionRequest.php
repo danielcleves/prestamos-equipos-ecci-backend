@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Rol;
 use App\Services\Parametros;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -43,6 +44,14 @@ class UpdateConfiguracionRequest extends FormRequest
             }
 
             foreach ($mapa as $clave => $valor) {
+                if ($clave === Parametros::CLAVE_CUPOS) {
+                    foreach ($this->erroresCupos($valor) as $error) {
+                        $validator->errors()->add("parametros.{$clave}", $error);
+                    }
+
+                    continue;
+                }
+
                 $definicion = Parametros::DEFINICIONES[$clave] ?? null;
 
                 if ($definicion === null) {
@@ -107,11 +116,38 @@ class UpdateConfiguracionRequest extends FormRequest
             return $this->erroresCorreosPermitidos($valor);
         }
 
-        // cupos.roles, duracion.categorias y duracion.roles_extra son mapas de
+        // duracion.categorias y duracion.roles_extra son mapas de
         // nombre/id a número de días o de cupos.
         foreach ($valor as $nombre => $numero) {
             if (! $this->esEnteroNoNegativo($numero)) {
                 return ["El valor de «{$nombre}» en «{$clave}» debe ser un entero mayor o igual a cero."];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * cupos.roles: mapa «nombre de rol => cupo». El rol debe existir; los roles
+     * nuevos se crean en /api/roles.
+     *
+     * @return array<int, string>
+     */
+    private function erroresCupos(mixed $valor): array
+    {
+        if (! is_array($valor) || $valor === []) {
+            return ['El parámetro «cupos.roles» debe ser un objeto «rol => cupo».'];
+        }
+
+        $existentes = Rol::query()->pluck('name')->all();
+
+        foreach ($valor as $nombre => $numero) {
+            if (! in_array((string) $nombre, $existentes, true)) {
+                return ["El rol «{$nombre}» no existe. Créalo primero en la gestión de roles."];
+            }
+
+            if (! $this->esEnteroNoNegativo($numero) || (int) $numero > Rol::CUPO_MAXIMO) {
+                return ["El cupo de «{$nombre}» debe ser un entero entre 0 y ".Rol::CUPO_MAXIMO.'.'];
             }
         }
 

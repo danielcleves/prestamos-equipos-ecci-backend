@@ -245,7 +245,7 @@ class DevolucionPrestamoTest extends TestCase
     public function test_rol_usuario_recibe_403_en_activos_y_devolucion(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $prestamo = Prestamo::factory()->entregado()->create();
 
