@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Categoria;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -51,5 +52,17 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
         ]);
+    }
+
+    /**
+     * RN-01: el usuario queda capacitado en las categorías indicadas.
+     */
+    public function capacitadoEn(Categoria ...$categorias): static
+    {
+        return $this->afterCreating(function (User $user) use ($categorias) {
+            $user->categoriasCapacitadas()->attach(
+                array_map(fn (Categoria $categoria) => $categoria->id, $categorias)
+            );
+        });
     }
 }

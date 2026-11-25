@@ -77,7 +77,8 @@ Respuesta (`201`):
     "id": 1,
     "codigo": "EQ-001",
     "nombre": "Portátil Dell 14\"",
-    "categoria": { "id": 1, "nombre": "Portátil" },
+    "categoria": { "id": 1, "nombre": "Portátil", "nivel_restriccion": 0, "requiere_capacitacion": false },
+    "usuario_capacitado": true,
     "descripcion": "Core i5, 8GB RAM",
     "estado": "disponible",
     "observaciones": "Con cargador original"
@@ -109,7 +110,8 @@ Respuesta exitosa (`200`):
     "id": 1,
     "codigo": "EQ-001",
     "nombre": "Portátil Dell 14\"",
-    "categoria": { "id": 1, "nombre": "Portátil" },
+    "categoria": { "id": 1, "nombre": "Portátil", "nivel_restriccion": 0, "requiere_capacitacion": false },
+    "usuario_capacitado": true,
     "descripcion": "Core i5, 8GB RAM",
     "estado": "mantenimiento",
     "observaciones": "Con cargador original"

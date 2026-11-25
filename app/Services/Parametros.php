@@ -6,7 +6,7 @@ use App\Models\Configuracion;
 use App\Models\Rol;
 
 /**
- * Parámetros de negocio de la iteración 2 (RN-01, RN-02, RN-04, RN-06, RN-08).
+ * Parámetros de negocio de la iteración 2 (RN-02, RN-04, RN-06, RN-08).
  *
  * Los valores viven en la tabla 'configuraciones' y son administrables por el
  * admin. Cuando una clave no está guardada se usa el valor por defecto del
@@ -68,12 +68,6 @@ class Parametros
             'grupo' => 'danos',
             'descripcion' => 'Días que el solicitante queda restringido al devolver un equipo con daños.',
             'default' => 7,
-        ],
-        'elegibilidad.requiere_capacitacion' => [
-            'tipo' => 'bool',
-            'grupo' => 'elegibilidad',
-            'descripcion' => 'Exige estar capacitado para solicitar préstamos.',
-            'default' => false,
         ],
         'registro.correos_permitidos' => [
             'tipo' => 'json',
@@ -199,14 +193,6 @@ class Parametros
     public function diasRestriccionDanos(): int
     {
         return (int) $this->valores()['danos.dias_restriccion'];
-    }
-
-    /**
-     * Indica si se exige capacitación para solicitar (RN-01).
-     */
-    public function requiereCapacitacion(): bool
-    {
-        return (bool) $this->valores()['elegibilidad.requiere_capacitacion'];
     }
 
     /**

@@ -42,7 +42,9 @@ class ConfiguracionTest extends TestCase
             ->assertJsonPath('data.mora.dias_bloqueo', 1)
             ->assertJsonPath('data.mora.escala.0.dias_sancion', 3)
             ->assertJsonPath('data.danos.dias_restriccion', 7)
-            ->assertJsonPath('data.elegibilidad.requiere_capacitacion', false);
+            // RN-01: la capacitación ya no es un parámetro global, la decide
+            // cada categoría.
+            ->assertJsonMissingPath('data.elegibilidad');
     }
 
     public function test_get_incluye_las_categorias_y_su_nivel_de_restriccion(): void
@@ -54,7 +56,8 @@ class ConfiguracionTest extends TestCase
             ->assertStatus(200)
             ->assertJsonPath('data.categorias.0.id', $categoria->id)
             ->assertJsonPath('data.categorias.0.nombre', 'Portátil')
-            ->assertJsonPath('data.categorias.0.nivel_restriccion', 1);
+            ->assertJsonPath('data.categorias.0.nivel_restriccion', 1)
+            ->assertJsonPath('data.categorias.0.requiere_capacitacion', false);
     }
 
     public function test_put_acepta_correos_permitidos_para_el_registro(): void
@@ -129,10 +132,6 @@ class ConfiguracionTest extends TestCase
             ->assertStatus(422);
 
         $this->actingAs($this->admin(), 'sanctum')
-            ->putJson('/api/configuracion', ['elegibilidad.requiere_capacitacion' => 'quizá'])
-            ->assertStatus(422);
-
-        $this->actingAs($this->admin(), 'sanctum')
             ->putJson('/api/configuracion', ['mora.escala' => 'no-es-lista'])
             ->assertStatus(422);
     }
@@ -191,7 +190,9 @@ class ConfiguracionTest extends TestCase
         $this->actingAs($admin, 'sanctum')
             ->patchJson("/api/categorias/{$categoria->id}/restriccion", [])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['nivel_restriccion']);
+            ->assertJsonValidationErrors([
+                'nivel_restriccion' => 'Debes enviar el nivel de restricción o si la categoría requiere capacitación.',
+            ]);
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');

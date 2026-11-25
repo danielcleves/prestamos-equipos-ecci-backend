@@ -9,15 +9,14 @@ use App\Models\Categoria;
 use Illuminate\Http\JsonResponse;
 
 /**
- * RN-03: nivel de restricción por categoría, administrable solo por admin.
+ * RN-01 / RN-03: nivel de restricción y requisito de capacitación por
+ * categoría, administrables solo por admin.
  */
 class CategoriaController extends Controller
 {
     public function actualizarRestriccion(UpdateCategoriaRestriccionRequest $request, Categoria $categoria): JsonResponse
     {
-        $categoria->update([
-            'nivel_restriccion' => (int) $request->validated('nivel_restriccion'),
-        ]);
+        $categoria->update($request->validated());
 
         return response()->json(['data' => new CategoriaResource($categoria)]);
     }

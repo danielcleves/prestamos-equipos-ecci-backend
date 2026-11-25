@@ -16,6 +16,8 @@ class CategoriaResource extends JsonResource
             'id' => $this->id,
             'nombre' => $this->nombre,
             'nivel_restriccion' => (int) $this->nivel_restriccion,
+            // RN-01: exige capacitación en esta categoría para solicitar.
+            'requiere_capacitacion' => (bool) $this->requiere_capacitacion,
         ];
     }
 }

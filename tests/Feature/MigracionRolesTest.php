@@ -32,8 +32,18 @@ class MigracionRolesTest extends TestCase
         parent::setUp();
 
         // Base en el estado anterior a la migración 000008.
-        $this->artisan('migrate:rollback', ['--step' => 1])->assertExitCode(0);
+        $this->deshacerHastaAntesDe000008();
         $this->assertFalse(Schema::hasColumn('roles', 'cupo_prestamos'));
+    }
+
+    /**
+     * Deshace la migración 000008 y todas las posteriores (p. ej. la
+     * capacitación por categoría), que se vuelven a aplicar con migrar().
+     */
+    private function deshacerHastaAntesDe000008(): void
+    {
+        $pasos = DB::table('migrations')->where('migration', '>=', self::MIGRACION)->count();
+        $this->artisan('migrate:rollback', ['--step' => $pasos])->assertExitCode(0);
     }
 
     private function migrar(): void
@@ -147,7 +157,7 @@ class MigracionRolesTest extends TestCase
         $this->migrar();
         DB::table('roles')->where('name', 'estudiante')->update(['cupo_prestamos' => 7]);
 
-        $this->artisan('migrate:rollback', ['--step' => 1])->assertExitCode(0);
+        $this->deshacerHastaAntesDe000008();
 
         $this->assertFalse(Schema::hasColumn('roles', 'cupo_prestamos'));
         $this->assertFalse(Schema::hasColumn('roles', 'es_predeterminado'));
@@ -166,7 +176,7 @@ class MigracionRolesTest extends TestCase
         $this->migrar();
         DB::table('roles')->where('name', 'estudiante')->update(['cupo_prestamos' => 9]);
 
-        $this->artisan('migrate:rollback', ['--step' => 1])->assertExitCode(0);
+        $this->deshacerHastaAntesDe000008();
         $this->migrar();
 
         $this->assertSame(

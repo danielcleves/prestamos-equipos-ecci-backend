@@ -19,7 +19,7 @@ class ConfiguracionController extends Controller
 {
     /**
      * Lista los parámetros efectivos agrupados por grupo (cupos, duracion,
-     * mora, danos, elegibilidad). Incluye los valores por defecto cuando una
+     * mora, danos, registro). Incluye los valores por defecto cuando una
      * clave todavía no se ha guardado.
      */
     public function show(Parametros $parametros): JsonResponse
@@ -29,8 +29,9 @@ class ConfiguracionController extends Controller
         return response()->json([
             'data' => [
                 ...$parametros->porGrupos(),
+                // RN-01: también si exige capacitación.
                 'categorias' => Categoria::orderBy('id')
-                    ->get(['id', 'nombre', 'nivel_restriccion'])
+                    ->get(['id', 'nombre', 'nivel_restriccion', 'requiere_capacitacion'])
                     ->toArray(),
                 // RN-02/RN-06: catálogo de roles para pintar cupos y días
                 // extra de todos los roles, también los personalizados.

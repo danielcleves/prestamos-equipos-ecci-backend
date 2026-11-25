@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Categoria;
+use App\Support\FechaNegocio;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -21,7 +23,17 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'is_active' => $this->is_active,
-            'capacitado' => (bool) $this->capacitado,
+            // RN-01: categorías en las que está capacitado, con la fecha en
+            // que se otorgó. Los listados la cargan con eager loading.
+            'capacitaciones' => $this->categoriasCapacitadas
+                ->sortBy('nombre')
+                ->map(fn (Categoria $categoria) => [
+                    'categoria_id' => $categoria->id,
+                    'nombre' => $categoria->nombre,
+                    'otorgada_en' => FechaNegocio::formatear($categoria->pivot->created_at),
+                ])
+                ->values()
+                ->all(),
             'roles' => $this->getRoleNames(),
             // RN-02: rol que decide el cupo y su nombre para mostrar.
             'rol_principal' => $this->rolPrincipal(),

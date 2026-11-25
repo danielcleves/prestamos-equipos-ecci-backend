@@ -73,7 +73,6 @@ class AuthController extends Controller
                 'email' => $datos['email'],
                 'password' => $datos['password'],
                 'is_active' => true,
-                'capacitado' => true,
             ]);
 
             $user->assignRole($rol);
