@@ -152,7 +152,7 @@ class UserControllerTest extends TestCase
             'name' => 'Duplicado',
             'email' => $admin->email,
             'password' => 'password123',
-            'role' => 'usuario',
+            'role' => 'estudiante',
         ])->assertStatus(422)->assertJsonValidationErrors(['email']);
     }
 
@@ -174,7 +174,7 @@ class UserControllerTest extends TestCase
     {
         $this->actingAsAdmin();
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $this->putJson("/api/usuarios/{$usuario->id}", [
             'role' => 'encargado',

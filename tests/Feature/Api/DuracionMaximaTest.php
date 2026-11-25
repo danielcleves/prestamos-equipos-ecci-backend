@@ -24,7 +24,7 @@ class DuracionMaximaTest extends TestCase
         $this->seed(RoleSeeder::class);
     }
 
-    private function usuario(string $rol = 'usuario'): User
+    private function usuario(string $rol = 'estudiante'): User
     {
         $user = User::factory()->create();
         $user->assignRole($rol);
@@ -69,7 +69,7 @@ class DuracionMaximaTest extends TestCase
     public function test_la_duracion_exacta_es_permitida(): void
     {
         $categoria = $this->categoria(4);
-        $this->parametro('duracion.roles_extra', ['usuario' => 1]);
+        $this->parametro('duracion.roles_extra', ['estudiante' => 1]);
         $equipo = $this->equipo($categoria);
 
         $this->actingAs($this->usuario(), 'sanctum')
@@ -80,7 +80,7 @@ class DuracionMaximaTest extends TestCase
     public function test_un_dia_mas_que_la_duracion_maxima_es_rechazado(): void
     {
         $categoria = $this->categoria(4);
-        $this->parametro('duracion.roles_extra', ['usuario' => 1]);
+        $this->parametro('duracion.roles_extra', ['estudiante' => 1]);
         $equipo = $this->equipo($categoria);
 
         $response = $this->actingAs($this->usuario(), 'sanctum')
@@ -92,7 +92,7 @@ class DuracionMaximaTest extends TestCase
 
     public function test_la_categoria_del_equipo_cambia_el_limite(): void
     {
-        $this->parametro('duracion.roles_extra', ['usuario' => 0]);
+        $this->parametro('duracion.roles_extra', ['estudiante' => 0]);
 
         $corta = Categoria::create(['nombre' => 'Corta '.uniqid()]);
         $larga = Categoria::create(['nombre' => 'Larga '.uniqid()]);
@@ -117,9 +117,9 @@ class DuracionMaximaTest extends TestCase
     public function test_el_rol_del_solicitante_cambia_el_limite(): void
     {
         $categoria = $this->categoria(5);
-        $this->parametro('duracion.roles_extra', ['usuario' => 0, 'encargado' => 2]);
+        $this->parametro('duracion.roles_extra', ['estudiante' => 0, 'encargado' => 2]);
 
-        $usuario = $this->usuario('usuario');
+        $usuario = $this->usuario('estudiante');
         $encargado = $this->usuario('encargado');
         $equipoUsuario = $this->equipo($categoria);
         $equipoEncargado = $this->equipo($categoria);
@@ -138,7 +138,7 @@ class DuracionMaximaTest extends TestCase
     public function test_el_detalle_del_equipo_expone_la_duracion_maxima_del_usuario(): void
     {
         $categoria = $this->categoria(4);
-        $this->parametro('duracion.roles_extra', ['usuario' => 1]);
+        $this->parametro('duracion.roles_extra', ['estudiante' => 1]);
         $equipo = $this->equipo($categoria);
 
         $this->actingAs($this->usuario(), 'sanctum')

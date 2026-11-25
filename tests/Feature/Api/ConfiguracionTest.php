@@ -35,7 +35,7 @@ class ConfiguracionTest extends TestCase
         $this->actingAs($this->admin(), 'sanctum')
             ->getJson('/api/configuracion')
             ->assertStatus(200)
-            ->assertJsonPath('data.cupos.roles.usuario', 3)
+            ->assertJsonPath('data.cupos.roles.estudiante', 3)
             ->assertJsonPath('data.cupos.roles.encargado', 5)
             ->assertJsonPath('data.cupos.roles.admin', 10)
             ->assertJsonPath('data.duracion.roles_extra.encargado', 2)
@@ -84,11 +84,11 @@ class ConfiguracionTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')
             ->putJson('/api/configuracion', [
-                'cupos.roles' => ['usuario' => 1, 'encargado' => 2, 'admin' => 4],
+                'cupos.roles' => ['estudiante' => 1, 'encargado' => 2, 'admin' => 4],
                 'mora.dias_bloqueo' => 2,
             ])
             ->assertStatus(200)
-            ->assertJsonPath('data.cupos.roles.usuario', 1)
+            ->assertJsonPath('data.cupos.roles.estudiante', 1)
             ->assertJsonPath('data.mora.dias_bloqueo', 2);
 
         $this->assertDatabaseHas('configuraciones', ['clave' => 'mora.dias_bloqueo', 'valor' => '2']);
@@ -159,7 +159,7 @@ class ConfiguracionTest extends TestCase
             ->assertStatus(403);
 
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $this->actingAs($usuario, 'sanctum')
             ->getJson('/api/configuracion')

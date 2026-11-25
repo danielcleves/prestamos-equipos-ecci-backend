@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ConfiguracionController;
 use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\PrestamoController;
+use App\Http\Controllers\Api\RolController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,7 +18,7 @@ Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:6,1');
 
 // Auto-registro de solicitantes: el correo debe estar autorizado en la
-// configuración; el rol se asigna en el backend (usuario).
+// configuración; recibe el rol predeterminado (RN-02, por defecto estudiante).
 Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1');
 
@@ -39,6 +40,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
     Route::get('/configuracion', [ConfiguracionController::class, 'show']);
     Route::put('/configuracion', [ConfiguracionController::class, 'update']);
     Route::patch('/categorias/{categoria}/restriccion', [CategoriaController::class, 'actualizarRestriccion']);
+
+    // RN-02: roles personalizados (estudiante, profesor, coordinador…) con
+    // su cupo de préstamos vivos.
+    Route::apiResource('roles', RolController::class)
+        ->parameters(['roles' => 'rol']);
 });
 
 // HU-03: catalogo de equipos. Consultar es para cualquier autenticado (lo

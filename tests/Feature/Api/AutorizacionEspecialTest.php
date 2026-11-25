@@ -23,7 +23,7 @@ class AutorizacionEspecialTest extends TestCase
         $this->seed(RoleSeeder::class);
     }
 
-    private function usuario(string $rol = 'usuario'): User
+    private function usuario(string $rol = 'estudiante'): User
     {
         $user = User::factory()->create();
         $user->assignRole($rol);

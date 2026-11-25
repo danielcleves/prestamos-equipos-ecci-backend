@@ -19,6 +19,9 @@ class UserResource extends JsonResource
             'is_active' => $this->is_active,
             'capacitado' => (bool) $this->capacitado,
             'roles' => $this->getRoleNames(),
+            // RN-02: rol que decide el cupo y su nombre para mostrar.
+            'rol_principal' => $this->rolPrincipal(),
+            'rol_etiqueta' => $this->roles->firstWhere('name', $this->rolPrincipal())?->etiquetaVisible(),
         ];
     }
 }

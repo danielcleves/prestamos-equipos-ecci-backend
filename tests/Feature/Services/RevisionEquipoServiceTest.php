@@ -112,7 +112,7 @@ class RevisionEquipoServiceTest extends TestCase
     public function test_rechaza_a_un_usuario_que_no_es_personal_administrativo(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $prestamo = Prestamo::factory()->entregado()->create();
 
         try {

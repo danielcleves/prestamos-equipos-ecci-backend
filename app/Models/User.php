@@ -45,19 +45,22 @@ class User extends Authenticatable
 
     /**
      * Rol principal del usuario para los cupos y la duración máxima
-     * (RN-02, RN-06). Si no tiene ninguno, se asume 'usuario'.
+     * (RN-02, RN-06): admin > encargado > su rol de solicitante. Sin roles se
+     * asume el rol predeterminado (por defecto «estudiante»).
      */
     public function rolPrincipal(): string
     {
-        if ($this->hasRole('admin')) {
-            return 'admin';
+        $nombres = $this->getRoleNames();
+
+        foreach (Rol::SISTEMA as $sistema) {
+            if ($nombres->contains($sistema)) {
+                return $sistema;
+            }
         }
 
-        if ($this->hasRole('encargado')) {
-            return 'encargado';
-        }
-
-        return 'usuario';
+        return $nombres->first()
+            ?? Rol::predeterminado()?->name
+            ?? Rol::PREDETERMINADO;
     }
 
     /**

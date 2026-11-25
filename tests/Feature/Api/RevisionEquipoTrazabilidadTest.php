@@ -144,7 +144,7 @@ class RevisionEquipoTrazabilidadTest extends TestCase
     public function test_el_rol_usuario_recibe_403(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $equipo = Equipo::factory()->create();
         RevisionEquipo::factory()->conDanos()->create(['equipo_id' => $equipo->id]);
 

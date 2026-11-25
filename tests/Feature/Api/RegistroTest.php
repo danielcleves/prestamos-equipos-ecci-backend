@@ -44,7 +44,7 @@ class RegistroTest extends TestCase
 
         $this->assertTrue($user->is_active);
         $this->assertTrue($user->capacitado);
-        $this->assertTrue($user->hasRole('usuario'));
+        $this->assertTrue($user->hasRole('estudiante'));
     }
 
     public function test_un_correo_exacto_configurado_tambien_puede_registrarse(): void
@@ -85,7 +85,7 @@ class RegistroTest extends TestCase
 
         $user = User::where('email', 'admin.falso@ecci.edu.co')->firstOrFail();
 
-        $this->assertTrue($user->hasRole('usuario'));
+        $this->assertTrue($user->hasRole('estudiante'));
         $this->assertFalse($user->hasRole('admin'));
     }
 

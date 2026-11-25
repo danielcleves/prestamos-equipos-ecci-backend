@@ -38,7 +38,7 @@ class DanosIncidenciaTest extends TestCase
 
     private function solicitante(): User
     {
-        return $this->personal('usuario');
+        return $this->personal('estudiante');
     }
 
     /**

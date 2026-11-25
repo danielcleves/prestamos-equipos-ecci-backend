@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api;
 
 use App\Models\Equipo;
+use App\Models\Rol;
 use App\Rules\TextoNoVacio;
 use App\Services\Parametros;
 use App\Support\FechaNegocio;
@@ -78,7 +79,7 @@ class StorePrestamoRequest extends FormRequest
                     // RN-06: el máximo depende de la categoría del equipo y
                     // del rol del solicitante (parámetros administrables).
                     $categoriaId = (int) (Equipo::whereKey($this->input('equipo_id'))->value('categoria_id') ?? 0);
-                    $rol = $this->user()?->rolPrincipal() ?? 'usuario';
+                    $rol = $this->user()?->rolPrincipal() ?? Rol::PREDETERMINADO;
                     $maxDias = app(Parametros::class)->duracionMaxima($categoriaId, $rol);
 
                     if ($devolucion->greaterThan($inicio->copy()->addDays($maxDias)->endOfDay())) {

@@ -36,7 +36,7 @@ class DatosSolicitudPendienteTest extends TestCase
     private function solicitante(): User
     {
         $user = User::factory()->create();
-        $user->assignRole('usuario');
+        $user->assignRole('estudiante');
 
         return $user;
     }
@@ -53,7 +53,7 @@ class DatosSolicitudPendienteTest extends TestCase
             'name' => 'Carlos Mendoza',
             'email' => 'carlos@ecci.edu.co',
         ]);
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $equipo = Equipo::factory()->create([
             'codigo' => 'PORT-050',
@@ -131,7 +131,7 @@ class DatosSolicitudPendienteTest extends TestCase
         // 10 solicitudes, cada una con su propio solicitante y equipo
         for ($i = 0; $i < 10; $i++) {
             $usuario = User::factory()->create();
-            $usuario->assignRole('usuario');
+            $usuario->assignRole('estudiante');
             Prestamo::factory()->solicitado()->create([
                 'usuario_id' => $usuario->id,
                 'equipo_id' => Equipo::factory()->create()->id,

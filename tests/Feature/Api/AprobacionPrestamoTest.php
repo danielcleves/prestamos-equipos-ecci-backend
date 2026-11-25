@@ -74,7 +74,7 @@ class AprobacionPrestamoTest extends TestCase
     public function test_rol_usuario_recibe_403_al_intentar_aprobar(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $prestamo = Prestamo::factory()->solicitado()->create();
 

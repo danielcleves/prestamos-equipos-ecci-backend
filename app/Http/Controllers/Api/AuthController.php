@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\LoginRequest;
 use App\Http\Requests\Api\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -49,21 +51,35 @@ class AuthController extends Controller
 
     /**
      * Auto-registro de un solicitante. El correo debe pertenecer a un dominio
-     * o dirección autorizada en la configuración; el rol siempre es `usuario`.
+     * o dirección autorizada en la configuración; recibe el rol predeterminado.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
         $datos = $request->validated();
 
-        $user = User::create([
-            'name' => $datos['name'],
-            'email' => $datos['email'],
-            'password' => $datos['password'],
-            'is_active' => true,
-            'capacitado' => true,
-        ]);
+        // RN-02: el rol lo decide el admin (rol predeterminado, por defecto
+        // «estudiante»); nunca el formulario.
+        $rol = Rol::predeterminado();
 
-        $user->assignRole('usuario');
+        if ($rol === null) {
+            return response()->json([
+                'message' => 'El registro no está disponible: no hay un rol predeterminado configurado.',
+            ], 503);
+        }
+
+        $user = DB::transaction(function () use ($datos, $rol) {
+            $user = User::create([
+                'name' => $datos['name'],
+                'email' => $datos['email'],
+                'password' => $datos['password'],
+                'is_active' => true,
+                'capacitado' => true,
+            ]);
+
+            $user->assignRole($rol);
+
+            return $user;
+        });
 
         return response()->json([
             'message' => 'Cuenta creada correctamente. Ya puedes iniciar sesión.',

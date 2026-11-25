@@ -31,7 +31,7 @@ class UsuarioCapacitadoTest extends TestCase
     public function test_put_usuarios_actualiza_capacitado(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $this->actingAs($this->admin(), 'sanctum')
             ->putJson("/api/usuarios/{$usuario->id}", ['capacitado' => false])
@@ -50,7 +50,7 @@ class UsuarioCapacitadoTest extends TestCase
                 'name' => 'Sin capacitación',
                 'email' => 'sin.capacitacion@ecci.edu.co',
                 'password' => 'password123',
-                'role' => 'usuario',
+                'role' => 'estudiante',
                 'capacitado' => false,
             ])
             ->assertStatus(201)
@@ -61,7 +61,7 @@ class UsuarioCapacitadoTest extends TestCase
                 'name' => 'Con capacitación',
                 'email' => 'con.capacitacion@ecci.edu.co',
                 'password' => 'password123',
-                'role' => 'usuario',
+                'role' => 'estudiante',
             ])
             ->assertStatus(201)
             ->assertJsonPath('data.capacitado', true);
@@ -70,7 +70,7 @@ class UsuarioCapacitadoTest extends TestCase
     public function test_capacitado_debe_ser_booleano(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
 
         $this->actingAs($this->admin(), 'sanctum')
             ->putJson("/api/usuarios/{$usuario->id}", ['capacitado' => 'tal vez'])

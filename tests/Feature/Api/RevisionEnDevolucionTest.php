@@ -167,7 +167,7 @@ class RevisionEnDevolucionTest extends TestCase
     {
         $encargado = $this->personal();
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $equipo = Equipo::factory()->create(['estado' => Equipo::ESTADO_EN_PRESTAMO]);
         $prestamo = Prestamo::factory()->entregado()->create([
@@ -327,7 +327,7 @@ class RevisionEnDevolucionTest extends TestCase
     public function test_el_rol_usuario_no_puede_registrar_la_revision_por_la_via_de_la_devolucion(): void
     {
         $usuario = User::factory()->create();
-        $usuario->assignRole('usuario');
+        $usuario->assignRole('estudiante');
         $prestamo = $this->prestamoEntregado();
 
         $this->actingAs($usuario, 'sanctum')

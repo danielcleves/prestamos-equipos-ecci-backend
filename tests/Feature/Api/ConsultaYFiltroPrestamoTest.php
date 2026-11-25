@@ -64,10 +64,10 @@ class ConsultaYFiltroPrestamoTest extends TestCase
     public function test_usuario_comun_puede_filtrar_sus_propios_prestamos_por_estado(): void
     {
         $usuario1 = User::factory()->create();
-        $usuario1->assignRole('usuario');
+        $usuario1->assignRole('estudiante');
 
         $usuario2 = User::factory()->create();
-        $usuario2->assignRole('usuario');
+        $usuario2->assignRole('estudiante');
 
         // Préstamos de usuario1
         Prestamo::factory()->solicitado()->create(['usuario_id' => $usuario1->id]);
@@ -133,7 +133,7 @@ class ConsultaYFiltroPrestamoTest extends TestCase
         $admin->assignRole('admin');
 
         $solicitante = User::factory()->create(['name' => 'Estudiante Juan']);
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $prestamoAprobado = Prestamo::factory()->aprobado()->create([
             'usuario_id' => $solicitante->id,
@@ -176,7 +176,7 @@ class ConsultaYFiltroPrestamoTest extends TestCase
     public function test_solicitante_puede_ver_motivo_de_rechazo_de_su_solicitud(): void
     {
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $encargado = User::factory()->create();
         $encargado->assignRole('encargado');

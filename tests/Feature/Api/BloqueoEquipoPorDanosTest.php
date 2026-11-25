@@ -90,7 +90,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $equipo = $this->devolverCon($condicion);
 
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $response = $this->actingAs($solicitante, 'sanctum')->postJson('/api/prestamos', [
             'equipo_id' => $equipo->id,
@@ -187,7 +187,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
 
         // Y ahora si se puede solicitar
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $this->actingAs($solicitante, 'sanctum')->postJson('/api/prestamos', [
             'equipo_id' => $equipo->id,
@@ -205,7 +205,7 @@ class BloqueoEquipoPorDanosTest extends TestCase
         $this->assertTrue($equipo->isDisponible());
 
         $solicitante = User::factory()->create();
-        $solicitante->assignRole('usuario');
+        $solicitante->assignRole('estudiante');
 
         $this->actingAs($solicitante, 'sanctum')->postJson('/api/prestamos', [
             'equipo_id' => $equipo->id,
