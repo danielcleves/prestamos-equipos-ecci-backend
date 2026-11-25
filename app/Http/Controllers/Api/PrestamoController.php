@@ -10,6 +10,7 @@ use App\Http\Requests\Api\EntregaPrestamoRequest;
 use App\Http\Requests\Api\RechazoPrestamoRequest;
 use App\Http\Requests\Api\StorePrestamoRequest;
 use App\Http\Resources\PrestamoResource;
+use App\Http\Resources\SancionResource;
 use App\Models\Prestamo;
 use App\Models\User;
 use App\Services\AprobacionPrestamoService;
@@ -224,6 +225,11 @@ class PrestamoController extends Controller
 
     /**
      * HU-11: Registra la devolución del equipo prestado (solo personal autorizado).
+     *
+     * RN-04: además del préstamo devuelto, la respuesta trae la sanción por
+     * mora que se acaba de generar ('sancion', o null si la devolución fue a
+     * tiempo) para que el frontend pueda avisar al encargado en la
+     * confirmación.
      */
     public function devolucion(
         DevolucionPrestamoRequest $request,
@@ -234,10 +240,15 @@ class PrestamoController extends Controller
             $prestamo,
             $request->user(),
             $request->validated()
-        );
+        )->load([...Prestamo::RELACIONES_RECURSO, 'sanciones']);
+
+        // La relación viene ordenada por id descendente y registrarPorMora crea
+        // como mucho una sanción por devolución: la primera es la recién creada.
+        $sancion = $prestamoActualizado->sanciones->first();
 
         return response()->json([
-            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+            'data' => new PrestamoResource($prestamoActualizado),
+            'sancion' => $sancion !== null ? new SancionResource($sancion) : null,
         ]);
     }
 

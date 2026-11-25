@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\EquipoController;
 use App\Http\Controllers\Api\IncidenciaController;
 use App\Http\Controllers\Api\PrestamoController;
 use App\Http\Controllers\Api\RolController;
+use App\Http\Controllers\Api\SancionController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -89,6 +90,11 @@ Route::middleware(['auth:sanctum', 'activo', 'role:admin|encargado'])->group(fun
     // RN-08: incidencias por daños en la devolución.
     Route::get('/incidencias', [IncidenciaController::class, 'index']);
     Route::patch('/incidencias/{incidencia}/cerrar', [IncidenciaController::class, 'cerrar']);
+
+    // RN-04: sanciones por mora de un usuario (solo lectura). No va con el
+    // resto de /usuarios porque aquel grupo es exclusivo de admin y el
+    // encargado también necesita verlas al registrar una devolución.
+    Route::get('/usuarios/{usuario}/sanciones', [SancionController::class, 'index']);
 });
 
 // HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).

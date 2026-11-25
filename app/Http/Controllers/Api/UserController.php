@@ -18,7 +18,13 @@ class UserController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $usuarios = User::with('roles')->orderBy('name');
+        // 'sanciones' se carga acotada a las vigentes (RN-04): UserResource
+        // expone 'sancion_activa' en cada fila y sin esto sería una consulta
+        // por usuario del listado.
+        $usuarios = User::with([
+            'roles',
+            'sanciones' => fn ($query) => $query->vigentes(),
+        ])->orderBy('name');
 
         return $this->respuestaPaginada($usuarios, $request, UserResource::class);
     }

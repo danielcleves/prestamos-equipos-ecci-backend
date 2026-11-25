@@ -456,6 +456,7 @@ Exclusivo para roles `admin` y `encargado`. Registra la recepción física del e
 - Si la condición es distinta de `bueno`, el campo `observaciones` es **obligatorio**.
 - El préstamo pasa a `devuelto`, se almacena `fecha_devolucion_real`, `recibido_por` y se almacena la observación en `observaciones_devolucion`, conservando intactas las observaciones previas de la entrega (`observaciones_entrega`).
 - Si la condición es `bueno`, el equipo regresa a `disponible`. En cualquier otro caso, pasa a `mantenimiento` (registrado en `historial_estados`).
+- **RN-04:** si la devolución es posterior a `fecha_devolucion_estimada`, se crea una sanción por mora con la duración de la escala configurada. La respuesta la devuelve en la clave `sancion` (o `null` si se devolvió a tiempo).
 
 ### Payload de la petición
 | Campo | Tipo | Obligatorio | Valores / Descripción |
@@ -469,5 +470,30 @@ Exclusivo para roles `admin` y `encargado`. Registra la recepción física del e
 {
   "condicion_devolucion": "con_danos",
   "observaciones": "Pantalla presenta fisura en la esquina superior derecha."
+}
+```
+
+### Respuesta (`200`)
+
+`data` trae el préstamo ya en `devuelto` y `sancion` la sanción por mora
+generada, o `null`:
+
+```json
+{
+  "data": { "id": 12, "estado": "devuelto", "fecha_devolucion_real": "2026-12-09T12:00:00-05:00" },
+  "sancion": {
+    "id": 1,
+    "user_id": 7,
+    "prestamo_id": 12,
+    "motivo": "mora",
+    "dias_retraso": 1,
+    "dias_sancion": 3,
+    "dias_restantes": 3,
+    "fecha_inicio": "2026-12-09T12:00:00-05:00",
+    "fecha_fin": "2026-12-12T12:00:00-05:00",
+    "estado": "activa",
+    "vigente": true,
+    "created_at": "2026-12-09T12:00:00-05:00"
+  }
 }
 ```
