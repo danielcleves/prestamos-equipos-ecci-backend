@@ -144,6 +144,42 @@ class UserControllerTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors(['role']);
     }
 
+    public function test_rol_invalido_indica_los_roles_disponibles(): void
+    {
+        // Caso reportado desde el despliegue: una pestaña con la lista de roles
+        // vieja envía «usuario» y el 422 genérico no da salida. El mensaje debe
+        // enumerar los nombres que sí acepta el backend.
+        $this->actingAsAdmin();
+
+        $mensaje = $this->postJson('/api/usuarios', [
+            'name' => 'Test',
+            'email' => 'test-rol-viejo@ecci.edu.co',
+            'password' => 'password123',
+            'role' => 'usuario',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['role'])
+            ->json('errors.role.0');
+
+        $this->assertStringContainsString('El rol «usuario» no existe.', $mensaje);
+        $this->assertStringContainsString('Roles disponibles: admin, encargado, estudiante.', $mensaje);
+    }
+
+    public function test_cambiar_a_un_rol_inexistente_indica_los_roles_disponibles(): void
+    {
+        $this->actingAsAdmin();
+        $usuario = User::factory()->create();
+        $usuario->assignRole('estudiante');
+
+        $mensaje = $this->putJson("/api/usuarios/{$usuario->id}", [
+            'role' => 'profesor-inexistente',
+        ])->assertStatus(422)
+            ->assertJsonValidationErrors(['role'])
+            ->json('errors.role.0');
+
+        $this->assertStringContainsString('«profesor-inexistente» no existe', $mensaje);
+        $this->assertStringContainsString('estudiante', $mensaje);
+    }
+
     public function test_registrar_usuario_rechaza_correo_duplicado(): void
     {
         $admin = $this->actingAsAdmin();

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Rol;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,6 +31,22 @@ class UpdateUserRequest extends FormRequest
             'role' => ['sometimes', 'required', 'string', Rule::exists('roles', 'name')],
             // RN-01: requisito de capacitación.
             'capacitado' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * Mismo mensaje que en el alta: enumera los roles que acepta el backend.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        $disponibles = Rol::nombresDisponibles();
+
+        return [
+            'role.exists' => $disponibles === []
+                ? 'El rol «:input» no existe.'
+                : 'El rol «:input» no existe. Roles disponibles: '.implode(', ', $disponibles).'.',
         ];
     }
 }
