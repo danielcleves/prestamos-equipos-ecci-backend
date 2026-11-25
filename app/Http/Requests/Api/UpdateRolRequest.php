@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api;
 use App\Models\Rol;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 /**
  * PATCH/PUT /api/roles/{rol} — edita etiqueta, descripción, cupo y la marca
@@ -44,11 +45,15 @@ class UpdateRolRequest extends FormRequest
             /** @var Rol $rol */
             $rol = $this->route('rol');
 
-            if ($this->has('etiqueta') && ! $validator->errors()->has('etiqueta')
-                && Rol::whereKeyNot($rol->id)
-                    ->whereRaw('LOWER(etiqueta) = ?', [mb_strtolower((string) $this->input('etiqueta'))])
-                    ->exists()) {
-                $validator->errors()->add('etiqueta', 'Ya existe un rol con ese nombre.');
+            if ($this->has('etiqueta') && ! $validator->errors()->has('etiqueta')) {
+                $etiqueta = (string) $this->input('etiqueta');
+                $slug = Str::slug($etiqueta, '_');
+
+                if (Rol::etiquetaEnUso($etiqueta, $rol->id)
+                    || (! $rol->esSistema() && in_array($slug, Rol::RESERVADOS, true))
+                    || ($slug !== $rol->name && Rol::whereKeyNot($rol->id)->where('name', $slug)->exists())) {
+                    $validator->errors()->add('etiqueta', 'Ya existe un rol con ese nombre.');
+                }
             }
 
             if (! $this->has('es_predeterminado') || $validator->errors()->has('es_predeterminado')) {

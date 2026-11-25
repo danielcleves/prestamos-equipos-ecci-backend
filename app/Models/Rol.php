@@ -57,6 +57,23 @@ class Rol extends Role
         );
     }
 
+    /**
+     * Indica si otra fila ya usa esa etiqueta, sin distinguir mayúsculas ni
+     * depender de LOWER() del motor (SQLite solo baja ASCII).
+     */
+    public static function etiquetaEnUso(string $etiqueta, ?int $excepto = null): bool
+    {
+        $buscada = mb_strtolower(trim($etiqueta));
+
+        return static::query()
+            ->when($excepto !== null, fn ($q) => $q->whereKeyNot($excepto))
+            ->pluck('etiqueta')
+            ->contains(fn ($e) => is_string($e) && mb_strtolower(trim($e)) === $buscada);
+    }
+
+    /** Nombres reservados que un rol de solicitante no puede usar. */
+    public const RESERVADOS = ['admin', 'encargado', 'usuario', 'administrador'];
+
     public function esSistema(): bool
     {
         return in_array($this->name, self::SISTEMA, true);

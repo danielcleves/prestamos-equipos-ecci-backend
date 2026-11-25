@@ -18,7 +18,7 @@ Route::post('/login', [AuthController::class, 'login'])
     ->middleware('throttle:6,1');
 
 // Auto-registro de solicitantes: el correo debe estar autorizado en la
-// configuración; el rol se asigna en el backend (usuario).
+// configuración; recibe el rol predeterminado (RN-02, por defecto estudiante).
 Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1');
 

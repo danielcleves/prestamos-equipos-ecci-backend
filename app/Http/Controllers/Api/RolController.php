@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreRolRequest;
 use App\Http\Requests\Api\UpdateRolRequest;
 use App\Http\Resources\RolResource;
+use App\Models\Configuracion;
 use App\Models\Rol;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -97,7 +98,19 @@ class RolController extends Controller
             ], 422);
         }
 
-        $rol->delete();
+        DB::transaction(function () use ($rol) {
+            // RN-06: sin esto, un rol nuevo con el mismo nombre heredaría
+            // los días extra del borrado.
+            $fila = Configuracion::where('clave', 'duracion.roles_extra')->lockForUpdate()->first();
+            $extra = $fila ? json_decode((string) $fila->valor, true) : null;
+
+            if (is_array($extra) && array_key_exists($rol->name, $extra)) {
+                unset($extra[$rol->name]);
+                Configuracion::establecer('duracion.roles_extra', $extra);
+            }
+
+            $rol->delete();
+        });
 
         return response()->json(null, 204);
     }

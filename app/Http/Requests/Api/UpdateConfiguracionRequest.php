@@ -116,6 +116,16 @@ class UpdateConfiguracionRequest extends FormRequest
             return $this->erroresCorreosPermitidos($valor);
         }
 
+        if ($clave === 'duracion.roles_extra') {
+            $existentes = Rol::query()->pluck('name')->all();
+
+            foreach (array_keys($valor) as $nombre) {
+                if (! in_array((string) $nombre, $existentes, true)) {
+                    return ["El rol «{$nombre}» no existe. Créalo primero en la gestión de roles."];
+                }
+            }
+        }
+
         // duracion.categorias y duracion.roles_extra son mapas de
         // nombre/id a número de días o de cupos.
         foreach ($valor as $nombre => $numero) {

@@ -52,14 +52,14 @@ class StoreRolRequest extends FormRequest
             $nombre = $this->nombre();
 
             if ($nombre === '') {
-                $validator->errors()->add('etiqueta', 'La etiqueta debe contener letras o números.');
+                $validator->errors()->add('etiqueta', 'El nombre del rol debe contener letras del alfabeto latino o números.');
 
                 return;
             }
 
-            if (in_array($nombre, ['usuario', ...Rol::SISTEMA], true)
+            if (in_array($nombre, Rol::RESERVADOS, true)
                 || Rol::where('name', $nombre)->exists()
-                || Rol::whereRaw('LOWER(etiqueta) = ?', [mb_strtolower($this->input('etiqueta'))])->exists()) {
+                || Rol::etiquetaEnUso((string) $this->input('etiqueta'))) {
                 $validator->errors()->add('etiqueta', 'Ya existe un rol con ese nombre.');
             }
         });
