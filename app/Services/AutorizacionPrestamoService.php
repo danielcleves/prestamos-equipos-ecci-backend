@@ -42,6 +42,14 @@ class AutorizacionPrestamoService
                 ]);
             }
 
+            // Control de dos personas: quien pidió el equipo no puede firmar
+            // su propia autorización especial, aunque sea personal.
+            if ((int) $fresco->usuario_id === (int) $personal->id) {
+                throw ValidationException::withMessages([
+                    'prestamo' => 'No puedes autorizar tu propia solicitud: la autorización especial debe darla otro miembro del personal.',
+                ]);
+            }
+
             if ($fresco->autorizado_por !== null) {
                 throw ValidationException::withMessages([
                     'prestamo' => 'Este préstamo ya fue autorizado.',
