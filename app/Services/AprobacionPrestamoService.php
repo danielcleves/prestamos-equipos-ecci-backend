@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\EstadoPrestamo;
+use App\Models\Equipo;
+use App\Models\Prestamo;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class AprobacionPrestamoService
+{
+    public function __construct(
+        protected TransicionPrestamoService $transicionService
+    ) {}
+
+    /**
+     * Aprueba una solicitud de préstamo respetando el orden de bloqueo: equipo -> préstamo.
+     * La aprobación NO altera el estado del equipo físico (eso ocurre durante la entrega).
+     *
+     * @throws ValidationException
+     */
+    public function aprobar(Prestamo $prestamo, User $personal): Prestamo
+    {
+        return DB::transaction(function () use ($prestamo, $personal) {
+            // Orden de bloqueo único en todo el módulo para evitar interbloqueos: usuario -> equipo -> préstamo.
+            // 1. Primero se bloquea el equipo con lockForUpdate() para verificar disponibilidad física con datos frescos.
+            $equipo = Equipo::whereKey($prestamo->equipo_id)->lockForUpdate()->firstOrFail();
+
+            // 2. El equipo debe cumplir Equipo::isDisponible()
+            if (! $equipo->isDisponible()) {
+                if ($equipo->isDadoDeBaja()) {
+                    throw ValidationException::withMessages([
+                        'equipo' => 'El equipo seleccionado ha sido dado de baja y no puede ser prestado.',
+                    ]);
+                }
+
+                if ($equipo->estado === Equipo::ESTADO_MANTENIMIENTO) {
+                    throw ValidationException::withMessages([
+                        'equipo' => 'El equipo seleccionado se encuentra en mantenimiento y no está disponible para préstamo.',
+                    ]);
+                }
+
+                if ($equipo->estado === Equipo::ESTADO_EN_PRESTAMO) {
+                    throw ValidationException::withMessages([
+                        'equipo' => 'El equipo seleccionado ya se encuentra en préstamo.',
+                    ]);
+                }
+
+                throw ValidationException::withMessages([
+                    'equipo' => 'El equipo seleccionado no se encuentra disponible para préstamo.',
+                ]);
+            }
+
+            // 3. RN-03: una solicitud de categoría restringida no puede
+            // aprobarse hasta que el personal la haya autorizado. Se recarga
+            // el préstamo para no decidir con datos viejos de la petición.
+            $prestamoFresco = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
+
+            // Control de dos personas (RN-03): un equipo restringido no puede
+            // aprobarlo quien lo solicitó, ni siquiera si ya lo autorizó otro
+            // miembro del personal.
+            if ($prestamoFresco->requiere_autorizacion
+                && (int) $prestamoFresco->usuario_id === (int) $personal->id) {
+                throw ValidationException::withMessages([
+                    'prestamo' => 'No puedes aprobar tu propia solicitud de un equipo restringido: debe aprobarla otro miembro del personal.',
+                ]);
+            }
+
+            if ($prestamoFresco->requiere_autorizacion && $prestamoFresco->autorizado_por === null) {
+                throw ValidationException::withMessages([
+                    'prestamo' => 'Este préstamo requiere autorización especial antes de aprobarse.',
+                ]);
+            }
+
+            // 4. Transición del préstamo: TransicionPrestamoService bloquea el préstamo en segundo lugar
+            // con lockForUpdate() y valida sobre datos frescos que su estado actual sea 'solicitado'.
+            return $this->transicionService->transicionar(
+                $prestamo,
+                EstadoPrestamo::Aprobado,
+                [
+                    'actor' => $personal,
+                    'fecha' => now(),
+                ]
+            );
+        });
+    }
+}

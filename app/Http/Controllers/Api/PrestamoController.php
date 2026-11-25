@@ -1,0 +1,256 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Enums\EstadoPrestamo;
+use App\Http\Controllers\Concerns\RespuestaPaginada;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\DevolucionPrestamoRequest;
+use App\Http\Requests\Api\EntregaPrestamoRequest;
+use App\Http\Requests\Api\RechazoPrestamoRequest;
+use App\Http\Requests\Api\StorePrestamoRequest;
+use App\Http\Resources\PrestamoResource;
+use App\Models\Prestamo;
+use App\Models\User;
+use App\Services\AprobacionPrestamoService;
+use App\Services\AutorizacionPrestamoService;
+use App\Services\DevolucionPrestamoService;
+use App\Services\EntregaPrestamoService;
+use App\Services\RechazoPrestamoService;
+use App\Services\SolicitudPrestamoService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+
+class PrestamoController extends Controller
+{
+    use RespuestaPaginada;
+
+    /**
+     * Lista los préstamos según el rol:
+     * - usuario común: únicamente sus propios préstamos.
+     * - admin y encargado: todos los préstamos.
+     *
+     * Filtros opcionales, acumulables entre sí y con el filtro por usuario:
+     * - ?estado=   un estado exacto del enum EstadoPrestamo.
+     * - ?activos=  1 solo los préstamos vivos, 0 solo los cerrados (HU-10).
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO);
+
+        if (! $request->user()->esPersonalAdministrativo()) {
+            $query->where('usuario_id', $request->user()->id);
+        }
+
+        if ($request->has('estado')) {
+            $estadoParam = $request->query('estado');
+            if ($estadoParam !== null && $estadoParam !== '') {
+                $estado = EstadoPrestamo::tryFrom($estadoParam);
+                if (! $estado) {
+                    throw ValidationException::withMessages([
+                        'estado' => ['El estado especificado no es válido.'],
+                    ]);
+                }
+                $query->where('estado', $estado->value);
+            }
+        }
+
+        // HU-10: ?activos=1 deja solo los préstamos vivos (solicitado,
+        // aprobado, entregado); ?activos=0 solo los cerrados. Se combina con
+        // ?estado= y con el filtro por usuario como un AND más, igual que los
+        // filtros de /api/equipos: pedir estado=devuelto&activos=1 devuelve
+        // lista vacía, porque devuelto nunca es activo.
+        if ($request->filled('activos')) {
+            // Igual que ?estado=, un valor no reconocido es un error del
+            // cliente y no se adivina la intención: antes cualquier texto caía
+            // en false y devolvía los préstamos cerrados sin avisar.
+            $activos = filter_var($request->query('activos'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+
+            if ($activos === null) {
+                throw ValidationException::withMessages([
+                    'activos' => ['El parámetro activos solo acepta 1, 0, true o false.'],
+                ]);
+            }
+
+            $activos
+                ? $query->whereIn('estado', EstadoPrestamo::valoresActivos())
+                : $query->whereNotIn('estado', EstadoPrestamo::valoresActivos());
+        }
+
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
+    }
+
+    /**
+     * HU-07: Lista las solicitudes pendientes de gestión (estado 'solicitado'),
+     * de la más antigua a la más reciente: es el orden en que deben atenderse.
+     *
+     * El detalle de cada solicitud sigue saliendo por GET /prestamos/{prestamo}.
+     */
+    public function pendientes(Request $request): JsonResponse
+    {
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
+            ->where('estado', EstadoPrestamo::Solicitado->value)
+            // Desempate por id: varias solicitudes pueden caer en el mismo
+            // segundo y fecha_solicitud no alcanza a distinguirlas.
+            ->orderBy('fecha_solicitud')
+            ->orderBy('id');
+
+        return $this->respuestaPaginada($query, $request, PrestamoResource::class);
+    }
+
+    /**
+     * HU-11: Lista los préstamos activos (en estado 'entregado') con soporte de búsqueda
+     * por código o nombre de equipo, o nombre o correo del solicitante (solo personal autorizado).
+     */
+    public function activos(Request $request): JsonResponse
+    {
+        $query = Prestamo::with(Prestamo::RELACIONES_RECURSO)
+            ->where('estado', EstadoPrestamo::Entregado->value);
+
+        if ($request->filled('buscar')) {
+            $texto = $request->string('buscar')->toString();
+            $escapado = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $texto);
+
+            $query->where(function (Builder $q) use ($escapado) {
+                $q->whereHas('equipo', function (Builder $eq) use ($escapado) {
+                    $eq->whereRaw("codigo LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                        ->orWhereRaw("nombre LIKE ? ESCAPE '!'", ["%{$escapado}%"]);
+                })->orWhereHas('solicitante', function (Builder $usr) use ($escapado) {
+                    $usr->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escapado}%"])
+                        ->orWhereRaw("email LIKE ? ESCAPE '!'", ["%{$escapado}%"]);
+                });
+            });
+        }
+
+        return $this->respuestaPaginada($query->latest('id'), $request, PrestamoResource::class);
+    }
+
+    /**
+     * Registra una nueva solicitud de préstamo.
+     */
+    public function store(StorePrestamoRequest $request, SolicitudPrestamoService $service): JsonResponse
+    {
+        $prestamo = $service->solicitar($request->user(), $request->validated());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
+        ], 201);
+    }
+
+    /**
+     * Consulta el detalle de un préstamo puntual.
+     * Protegido por asegurarVisibilidad: el solicitante solo puede ver el suyo; personal administrativo ve cualquiera.
+     */
+    public function show(Request $request, Prestamo $prestamo): JsonResponse
+    {
+        $this->asegurarVisibilidad($request->user(), $prestamo);
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamo->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * RN-03: autoriza una solicitud de categoría restringida antes de que
+     * pueda aprobarse (solo personal administrativo).
+     */
+    public function autorizacion(
+        Request $request,
+        Prestamo $prestamo,
+        AutorizacionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->autorizar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-08: Aprueba una solicitud de préstamo (solo personal autorizado: admin y encargado).
+     */
+    public function aprobacion(
+        Request $request,
+        Prestamo $prestamo,
+        AprobacionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->aprobar($prestamo, $request->user());
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-08: Rechaza una solicitud de préstamo con motivo obligatorio (solo personal autorizado).
+     */
+    public function rechazo(
+        RechazoPrestamoRequest $request,
+        Prestamo $prestamo,
+        RechazoPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->rechazar(
+            $prestamo,
+            $request->user(),
+            $request->validated('motivo')
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-09: Registra la entrega del equipo al solicitante (solo personal autorizado).
+     */
+    public function entrega(
+        EntregaPrestamoRequest $request,
+        Prestamo $prestamo,
+        EntregaPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->registrarEntrega(
+            $prestamo,
+            $request->user(),
+            $request->validated()
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * HU-11: Registra la devolución del equipo prestado (solo personal autorizado).
+     */
+    public function devolucion(
+        DevolucionPrestamoRequest $request,
+        Prestamo $prestamo,
+        DevolucionPrestamoService $service
+    ): JsonResponse {
+        $prestamoActualizado = $service->registrarDevolucion(
+            $prestamo,
+            $request->user(),
+            $request->validated()
+        );
+
+        return response()->json([
+            'data' => new PrestamoResource($prestamoActualizado->load(Prestamo::RELACIONES_RECURSO)),
+        ]);
+    }
+
+    /**
+     * Asegura la visibilidad del préstamo según el rol:
+     * El solicitante dueño puede ver su propio préstamo; el personal administrativo puede ver cualquiera.
+     * Si un usuario no autorizado consulta un préstamo ajeno, se lanza ModelNotFoundException para responder
+     * 404 (mismo criterio de visibilidad de EquipoController), evitando revelar la existencia del registro.
+     */
+    private function asegurarVisibilidad(?User $user, Prestamo $prestamo): void
+    {
+        if ($user === null || (! $user->esPersonalAdministrativo() && $prestamo->usuario_id !== $user->id)) {
+            throw (new ModelNotFoundException)->setModel(Prestamo::class, [$prestamo->id]);
+        }
+    }
+}

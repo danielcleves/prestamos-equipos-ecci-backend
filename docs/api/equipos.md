@@ -1,0 +1,228 @@
+# Catálogo de equipos
+
+Implementa **HU-03** ("registrar equipos para mantener actualizado el
+catálogo") y **HU-04** ("actualizar el estado de un equipo").
+
+## Endpoints
+
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/api/equipos` | Cualquier autenticado | Lista el catálogo, paginado (`?per_page=`, default 15, máx 100) |
+| `GET` | `/api/equipos/{equipo}` | Cualquier autenticado | Consulta un equipo puntual |
+| `GET` | `/api/equipos/{equipo}/historial` | Cualquier autenticado | Historial de cambios de `estado`, paginado (`?per_page=`, default 15, máx 100), más reciente primero (responde `404` al rol `usuario` si el equipo está dado de baja) |
+| `POST` | `/api/equipos` | Solo `admin` | Registra un equipo nuevo |
+| `PATCH` | `/api/equipos/{equipo}/estado` | Solo `admin` | Cambia el `estado` del equipo |
+
+La consulta está abierta a cualquier rol autenticado (no solo `admin`) porque
+HU-05 ("consultar los equipos disponibles") va a necesitarlo para que
+solicitantes vean el catálogo — esa historia es quien agrega filtros como
+"solo disponibles" más adelante, esto solo expone el listado base.
+
+## Campos de un equipo
+
+| Campo | Tipo | Regla |
+|---|---|---|
+| `codigo` | string, único | "Código o serial" del equipo — lo pide el admin al registrar |
+| `nombre` | string | requerido |
+| `categoria_id` | id de una categoría existente | requerido — ver `docs/decisiones.md` para las categorías de ejemplo |
+| `descripcion` | string, opcional | |
+| `estado` | `disponible` / `en_prestamo` / `mantenimiento` / `dado_de_baja` | **al registrar, el sistema lo asigna solo** (`disponible`) — no es un campo de entrada de `POST`, cualquier valor enviado ahí se ignora. Se cambia después con `PATCH /api/equipos/{equipo}/estado` |
+| `observaciones` | string, opcional | |
+
+`categoria_id` no tiene su propio CRUD todavía — se siembra con
+`CategoriaSeeder` (`Portátil`, `Tablet`, `De mesa`) hasta que exista una HU
+para administrar categorías.
+
+## Reglas
+
+- `codigo` es único — registrar uno duplicado devuelve `422`.
+- `categoria_id` debe existir en `categorias` — si no, `422`.
+- El `estado` que mande el cliente en `POST /api/equipos` se ignora: el
+  sistema siempre asigna `disponible` a un equipo recién creado.
+- **`dado_de_baja` es un estado terminal**: un equipo en ese estado no puede
+  volver a cambiar de estado (`PATCH .../estado` devuelve `422` con `errors.estado`).
+  Así se cumple que un equipo dado de baja nunca puede llegar a `en_prestamo`.
+- Cada cambio de `estado` (incluida la asignación inicial al registrar)
+  queda registrado en `historial_estados`, con quién lo hizo y cuándo —
+  consultable en `GET /api/equipos/{equipo}/historial`. Si el equipo se
+  encuentra `dado_de_baja`, este endpoint responde `404` (`Recurso no encontrado.`)
+  al rol `usuario`, la misma regla de visibilidad que aplica a `GET /api/equipos/{equipo}`.
+- `mantenimiento` y `dado_de_baja` no filtran nada todavía en
+  `GET /api/equipos` — HU-05 ("consultar equipos disponibles") es quien
+  agrega ese filtro; por ahora el catálogo lista todos los equipos sin
+  importar su estado.
+
+## Ejemplos
+
+**Registrar un equipo**
+
+```sh
+curl -i -X POST http://localhost:8000/api/equipos \
+  -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "codigo": "EQ-001",
+    "nombre": "Portátil Dell 14\"",
+    "categoria_id": 1,
+    "descripcion": "Core i5, 8GB RAM",
+    "observaciones": "Con cargador original"
+  }'
+```
+
+Respuesta (`201`):
+
+```json
+{
+  "data": {
+    "id": 1,
+    "codigo": "EQ-001",
+    "nombre": "Portátil Dell 14\"",
+    "categoria": { "id": 1, "nombre": "Portátil" },
+    "descripcion": "Core i5, 8GB RAM",
+    "estado": "disponible",
+    "observaciones": "Con cargador original"
+  }
+}
+```
+
+**Listar el catálogo**
+
+```sh
+curl -i http://localhost:8000/api/equipos \
+  -H "Authorization: Bearer <token>"
+```
+
+**Cambiar el estado de un equipo**
+
+```sh
+curl -i -X PATCH http://localhost:8000/api/equipos/1/estado \
+  -H "Authorization: Bearer <token-admin>" \
+  -H "Content-Type: application/json" \
+  -d '{"estado": "mantenimiento"}'
+```
+
+Respuesta exitosa (`200`):
+
+```json
+{
+  "data": {
+    "id": 1,
+    "codigo": "EQ-001",
+    "nombre": "Portátil Dell 14\"",
+    "categoria": { "id": 1, "nombre": "Portátil" },
+    "descripcion": "Core i5, 8GB RAM",
+    "estado": "mantenimiento",
+    "observaciones": "Con cargador original"
+  }
+}
+```
+
+Si el equipo ya se encuentra `dado_de_baja`, la petición es rechazada (`422`):
+
+```json
+{
+  "message": "Un equipo dado de baja no puede cambiar de estado.",
+  "errors": {
+    "estado": [
+      "Un equipo dado de baja no puede cambiar de estado."
+    ]
+  }
+}
+```
+
+**Consultar el historial de estados**
+
+```sh
+curl -i http://localhost:8000/api/equipos/1/historial \
+  -H "Authorization: Bearer <token>"
+```
+
+Respuesta (`200`):
+
+```json
+{
+  "data": [
+    {
+      "id": 2,
+      "estado_anterior": "disponible",
+      "estado_nuevo": "mantenimiento",
+      "usuario": {
+        "id": 1,
+        "name": "Admin"
+      },
+      "fecha": "2026-09-09T19:50:00.000000Z"
+    },
+    {
+      "id": 1,
+      "estado_anterior": null,
+      "estado_nuevo": "disponible",
+      "usuario": {
+        "id": 1,
+        "name": "Admin"
+      },
+      "fecha": "2026-09-09T19:40:00.000000Z"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 2
+  }
+}
+```
+
+Si el equipo se encuentra `dado_de_baja` y se consulta con token de rol `usuario`, responde `404 Not Found`:
+
+```json
+{
+  "message": "Recurso no encontrado."
+}
+```
+
+## `GET /api/equipos/{equipo}/revisiones` (HU-12)
+
+Revisiones de devolución del equipo, más recientes primero. **Exclusivo de
+`admin` y `encargado`**: a diferencia de `/historial`, las observaciones de la
+revisión son reservadas al personal.
+
+| Parámetro | Tipo | Notas |
+|---|---|---|
+| `per_page` | entero | Acotado a `[1, 100]`, default 15 |
+| `con_danos` | booleano | Opcional. `1` solo revisiones con novedad, `0` solo las que volvieron en buen estado |
+
+```json
+{
+  "data": [
+    {
+      "id": 7,
+      "prestamo_id": 42,
+      "equipo_id": 3,
+      "condicion": "con_danos",
+      "condicion_etiqueta": "Con daños",
+      "tiene_danos": true,
+      "observaciones": "Tapa agrietada",
+      "revisado_por": 2,
+      "fecha_revision": "2026-11-17T16:30:00-05:00",
+      "incidencia_id": null
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
+}
+```
+
+- `incidencia_id` queda reservado para la HU-31 y es `null` mientras no existan
+  incidencias.
+- Las revisiones **se conservan después de cerrado el préstamo**: son la
+  trazabilidad que alimenta la gestión de incidencias.
+- Rol `usuario` → `403`; sin token → `401`; equipo inexistente → `404`.
+
+## Pendiente
+
+- Filtrar el catálogo por disponibilidad (HU-05).
+- CRUD de `categorias` — hoy solo existen las que trae `CategoriaSeeder`.

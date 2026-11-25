@@ -1,0 +1,138 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\CondicionEquipo;
+use App\Enums\EstadoPrestamo;
+use App\Models\Equipo;
+use App\Models\Prestamo;
+use App\Models\User;
+use App\Support\FechaNegocio;
+use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class DevolucionPrestamoService
+{
+    public function __construct(
+        protected TransicionPrestamoService $transicionService,
+        protected RevisionEquipoService $revisionService,
+        protected SancionService $sancionService,
+        protected IncidenciaService $incidenciaService
+    ) {}
+
+    /**
+     * Registra la devolución de un equipo prestado.
+     * Orquesta dentro de una transacción el bloqueo estricto (primero equipo, luego préstamo),
+     * el registro de la revisión del equipo (HU-12) y la actualización del estado del equipo
+     * a 'disponible' o 'mantenimiento'.
+     *
+     * @param  array{
+     *     fecha_devolucion_real?: CarbonInterface|string|null,
+     *     condicion_devolucion: CondicionEquipo|string,
+     *     observaciones?: string|null
+     * }  $datos
+     *
+     * @throws ValidationException
+     */
+    public function registrarDevolucion(Prestamo $prestamo, User $personal, array $datos): Prestamo
+    {
+        return DB::transaction(function () use ($prestamo, $personal, $datos) {
+            // Orden de bloqueo único en todo el módulo para prevenir interbloqueos: usuario -> equipo -> préstamo.
+            // 1. Primero se bloquea el equipo con lockForUpdate() (el solicitante no participa directamente en la transacción).
+            // Nota: lockForUpdate() no bloquea en SQLite (las carreras de concurrencia solo se reproducen en MySQL 8.0).
+            $equipo = Equipo::whereKey($prestamo->equipo_id)->lockForUpdate()->firstOrFail();
+
+            if ($equipo->estado !== Equipo::ESTADO_EN_PRESTAMO) {
+                $estadoTexto = match ($equipo->estado) {
+                    Equipo::ESTADO_DISPONIBLE => 'disponible',
+                    Equipo::ESTADO_MANTENIMIENTO => 'en mantenimiento',
+                    Equipo::ESTADO_DADO_DE_BAJA => 'dado de baja',
+                    default => $equipo->estado,
+                };
+
+                throw ValidationException::withMessages([
+                    'equipo' => "El equipo no se encuentra en préstamo (estado actual: {$estadoTexto}).",
+                ]);
+            }
+
+            $condicion = $datos['condicion_devolucion'] instanceof CondicionEquipo
+                ? $datos['condicion_devolucion']
+                : CondicionEquipo::from($datos['condicion_devolucion']);
+
+            $fechaDevolucion = isset($datos['fecha_devolucion_real']) && $datos['fecha_devolucion_real'] !== null
+                ? ($datos['fecha_devolucion_real'] instanceof CarbonInterface
+                    ? $datos['fecha_devolucion_real']
+                    : FechaNegocio::parsear($datos['fecha_devolucion_real']))
+                : now();
+
+            if ($error = $prestamo->errorFechaDevolucionReal($fechaDevolucion)) {
+                throw ValidationException::withMessages([
+                    'fecha_devolucion_real' => $error,
+                ]);
+            }
+
+            // 2. La máquina de estados habla primero: la revisión solo puede
+            // registrarse sobre un préstamo 'entregado', así que sin este
+            // pre-chequeo un préstamo en otro estado recibiría el error de la
+            // revisión en vez del de la transición. El mensaje sale del enum
+            // para que sea idéntico al que emite TransicionPrestamoService.
+            $prestamoActual = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $prestamoActual->estado->puedeTransicionarA(EstadoPrestamo::Devuelto)) {
+                throw ValidationException::withMessages([
+                    'estado' => $prestamoActual->estado->mensajeTransicionInvalida(EstadoPrestamo::Devuelto),
+                ]);
+            }
+
+            // 3. HU-12: se registra la revisión del equipo DENTRO de la misma
+            // transacción, antes de la transición de estado: RevisionEquipoService
+            // exige que el préstamo esté todavía en 'entregado' (en proceso de
+            // devolución). Si la revisión falla, la devolución entera se revierte.
+            // Se le pasa la fila ya bloqueada arriba para no repetir el
+            // SELECT ... FOR UPDATE de la misma fila.
+            $revision = $this->revisionService->registrar($prestamoActual, $personal, [
+                'condicion' => $condicion,
+                'observaciones' => $datos['observaciones'] ?? null,
+                'fecha_revision' => $fechaDevolucion,
+            ], $prestamoActual);
+
+            // 4. Transición del préstamo (TransicionPrestamoService bloquea el préstamo en segundo lugar)
+            // Se debe usar la instancia fresca retornada por el servicio
+            $prestamoActualizado = $this->transicionService->transicionar(
+                $prestamo,
+                EstadoPrestamo::Devuelto,
+                [
+                    'actor' => $personal,
+                    'fecha' => $fechaDevolucion,
+                    'condicion' => $condicion,
+                    'observaciones' => $datos['observaciones'] ?? null,
+                ]
+            );
+
+            // 5. RN-04: si la devolución fue después de la fecha estimada se
+            // registra la sanción escalonada correspondiente.
+            $this->sancionService->registrarPorMora($prestamoActualizado, $fechaDevolucion);
+
+            // 6. RN-08: una devolución con daños o que requiere mantenimiento
+            // abre una incidencia que restringe al solicitante y queda
+            // enlazada desde la revisión (revisiones_equipo.incidencia_id).
+            if ($revision->tiene_danos) {
+                $incidencia = $this->incidenciaService->abrir($prestamoActualizado, $revision);
+
+                $revision->update(['incidencia_id' => $incidencia->id]);
+            }
+
+            // 7. Actualización de estado del equipo:
+            // Si el estado es 'bueno', regresa a 'disponible'; en caso de daños o necesidad de mantenimiento, pasa a 'mantenimiento'.
+            // EquipoObserver registra automáticamente la trazabilidad en historial_estados.
+            $nuevoEstadoEquipo = ($condicion === CondicionEquipo::Bueno)
+                ? Equipo::ESTADO_DISPONIBLE
+                : Equipo::ESTADO_MANTENIMIENTO;
+
+            $equipo->update(['estado' => $nuevoEstadoEquipo]);
+
+            return $prestamoActualizado;
+        });
+    }
+}

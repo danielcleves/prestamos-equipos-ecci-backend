@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\LoginRequest;
+use App\Http\Requests\Api\RegisterRequest;
+use App\Http\Resources\UserResource;
+use App\Models\Rol;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+
+class AuthController extends Controller
+{
+    /**
+     * Autentica al usuario y emite un token personal de Sanctum.
+     */
+    public function login(LoginRequest $request): JsonResponse
+    {
+        $credentials = $request->validated();
+
+        $user = User::where('email', $credentials['email'])->first();
+
+        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+            // Mismo mensaje para "usuario inexistente" y "contrasena incorrecta":
+            // distinguirlos permitiria averiguar que correos estan registrados.
+            throw ValidationException::withMessages([
+                'email' => ['Las credenciales no coinciden con nuestros registros.'],
+            ]);
+        }
+
+        if (! $user->is_active) {
+            // Distinto del mensaje anterior: en este punto ya demostro conocer
+            // la contrasena correcta, asi que no hay nada nuevo que enumerar.
+            throw ValidationException::withMessages([
+                'email' => ['Tu cuenta esta desactivada. Contacta a un administrador.'],
+            ]);
+        }
+
+        $token = $user->createToken($credentials['device_name'] ?? 'api');
+
+        return response()->json([
+            'token' => $token->plainTextToken,
+            'user' => new UserResource($user),
+        ]);
+    }
+
+    /**
+     * Auto-registro de un solicitante. El correo debe pertenecer a un dominio
+     * o dirección autorizada en la configuración; recibe el rol predeterminado.
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $datos = $request->validated();
+
+        // RN-02: el rol lo decide el admin (rol predeterminado, por defecto
+        // «estudiante»); nunca el formulario.
+        $rol = Rol::predeterminado();
+
+        if ($rol === null) {
+            return response()->json([
+                'message' => 'El registro no está disponible: no hay un rol predeterminado configurado.',
+            ], 503);
+        }
+
+        $user = DB::transaction(function () use ($datos, $rol) {
+            $user = User::create([
+                'name' => $datos['name'],
+                'email' => $datos['email'],
+                'password' => $datos['password'],
+                'is_active' => true,
+                'capacitado' => true,
+            ]);
+
+            $user->assignRole($rol);
+
+            return $user;
+        });
+
+        return response()->json([
+            'message' => 'Cuenta creada correctamente. Ya puedes iniciar sesión.',
+            'user' => new UserResource($user),
+        ], 201);
+    }
+
+    /**
+     * Revoca unicamente el token con el que se hizo esta peticion,
+     * de modo que cerrar sesion en un dispositivo no afecta a los demas.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Sesion cerrada correctamente.',
+        ]);
+    }
+
+    /**
+     * Devuelve el usuario autenticado. El frontend lo usa para restaurar la
+     * sesion al recargar y para saber que puede mostrar segun el rol.
+     */
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'user' => new UserResource($request->user()),
+        ]);
+    }
+}

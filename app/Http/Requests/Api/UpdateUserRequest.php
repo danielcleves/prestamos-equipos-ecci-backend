@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Http\Requests\Api;
+
+use App\Models\Rol;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        // La autorizacion (solo admin) la resuelve el middleware 'role:admin'
+        // de la ruta.
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => [
+                'sometimes', 'required', 'string', 'email', 'max:255',
+                Rule::unique('users', 'email')->ignore($this->route('usuario')),
+            ],
+            // Contrasena opcional: solo se cambia si se manda un valor.
+            'password' => ['sometimes', 'nullable', 'string', 'min:8'],
+            'role' => ['sometimes', 'required', 'string', Rule::exists('roles', 'name')],
+            // RN-01: requisito de capacitación.
+            'capacitado' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * Mismo mensaje que en el alta: enumera los roles que acepta el backend.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        $disponibles = Rol::nombresDisponibles();
+
+        return [
+            'role.exists' => $disponibles === []
+                ? 'El rol «:input» no existe.'
+                : 'El rol «:input» no existe. Roles disponibles: '.implode(', ', $disponibles).'.',
+        ];
+    }
+}

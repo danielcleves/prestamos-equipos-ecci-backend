@@ -1,0 +1,198 @@
+<?php
+
+namespace App\Models;
+
+use App\Enums\CondicionEquipo;
+use App\Enums\EstadoPrestamo;
+use Carbon\CarbonInterface;
+use Database\Factories\PrestamoFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
+#[Fillable([
+    'usuario_id',
+    'equipo_id',
+    'estado',
+    'motivo',
+    'fecha_solicitud',
+    'fecha_inicio',
+    'fecha_devolucion_estimada',
+    'fecha_aprobacion',
+    'fecha_rechazo',
+    'fecha_entrega_real',
+    'fecha_devolucion_real',
+    'condicion_entrega',
+    'condicion_devolucion',
+    'entregado_por',
+    'recibido_por',
+    'gestionado_por',
+    'motivo_rechazo',
+    'observaciones_entrega',
+    'observaciones_devolucion',
+    'requiere_autorizacion',
+    'autorizado_por',
+    'fecha_autorizacion',
+])]
+class Prestamo extends Model
+{
+    /** @use HasFactory<PrestamoFactory> */
+    use HasFactory;
+
+    /**
+     * Relaciones requeridas por PrestamoResource para garantizar la misma
+     * estructura de claves en todas las respuestas de la API.
+     *
+     * @var list<string>
+     */
+    public const RELACIONES_RECURSO = [
+        'equipo.categoria',
+        // solicitante.roles y no solo 'solicitante': PrestamoResource expone
+        // los roles del solicitante al personal con getRoleNames(), que sin
+        // esta carga anticipada dispara una consulta por fila (N+1). No se
+        // notaba mientras todas las filas compartían solicitante; con un
+        // solicitante distinto por fila, como en el listado de solicitudes
+        // pendientes (HU-07), son N consultas extra.
+        'solicitante.roles',
+        'gestionadoPor',
+        'entregadoPor',
+        'recibidoPor',
+        // HU-12: se carga siempre para que la clave 'revision' exista en todas
+        // las respuestas (nula mientras no haya revisión), igual que el resto
+        // del contrato. Sin relación anidada a proposito: el revisor añadiría
+        // una consulta al presupuesto del listado.
+        'revision',
+    ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'estado' => EstadoPrestamo::class,
+            'condicion_entrega' => CondicionEquipo::class,
+            'condicion_devolucion' => CondicionEquipo::class,
+            'fecha_solicitud' => 'datetime',
+            'fecha_inicio' => 'datetime',
+            'fecha_devolucion_estimada' => 'datetime',
+            'fecha_aprobacion' => 'datetime',
+            'fecha_rechazo' => 'datetime',
+            'fecha_entrega_real' => 'datetime',
+            'fecha_devolucion_real' => 'datetime',
+            'requiere_autorizacion' => 'boolean',
+            'fecha_autorizacion' => 'datetime',
+        ];
+    }
+
+    /**
+     * Usuario solicitante del préstamo.
+     */
+    public function solicitante(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    /**
+     * Miembro del personal que aprobó o rechazó la solicitud.
+     */
+    public function gestionadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'gestionado_por');
+    }
+
+    /**
+     * Equipo objeto del préstamo.
+     */
+    public function equipo(): BelongsTo
+    {
+        return $this->belongsTo(Equipo::class, 'equipo_id');
+    }
+
+    /**
+     * Miembro del personal que registró la entrega del equipo.
+     */
+    public function entregadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'entregado_por');
+    }
+
+    /**
+     * Miembro del personal que registró la recepción en la devolución.
+     */
+    public function recibidoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'recibido_por');
+    }
+
+    /**
+     * Miembro del personal que autorizó una solicitud restringida (RN-03).
+     */
+    public function autorizadoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'autorizado_por');
+    }
+
+    /**
+     * Sanciones por mora asociadas al préstamo (RN-04).
+     */
+    public function sanciones(): HasMany
+    {
+        return $this->hasMany(Sancion::class, 'prestamo_id')->latest('id');
+    }
+
+    /**
+     * Incidencia abierta con la devolución con daños (RN-08).
+     */
+    public function incidencia(): HasOne
+    {
+        return $this->hasOne(Incidencia::class, 'prestamo_id');
+    }
+
+    /**
+     * HU-12: revisión del estado del equipo registrada en la devolución.
+     * hasOne y no hasMany: la unicidad de prestamo_id está garantizada por la
+     * base de datos (una sola revisión por préstamo).
+     */
+    public function revision(): HasOne
+    {
+        return $this->hasOne(RevisionEquipo::class, 'prestamo_id');
+    }
+
+    /**
+     * Valida la coherencia temporal de la fecha de entrega real.
+     * Retorna el mensaje de error en español o null si es válida.
+     */
+    public function errorFechaEntregaReal(CarbonInterface $fecha): ?string
+    {
+        if ($fecha->isAfter(now()->addMinute())) {
+            return 'La fecha de entrega real no puede ser posterior al momento actual.';
+        }
+
+        if ($this->fecha_aprobacion && $fecha->isBefore($this->fecha_aprobacion)) {
+            return 'La fecha de entrega real no puede ser anterior a la fecha de aprobación del préstamo.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Valida la coherencia temporal de la fecha de devolución real.
+     * Retorna el mensaje de error en español o null si es válida.
+     */
+    public function errorFechaDevolucionReal(CarbonInterface $fecha): ?string
+    {
+        if ($fecha->isAfter(now()->addMinute())) {
+            return 'La fecha de devolución real no puede ser posterior al momento actual.';
+        }
+
+        if ($this->fecha_entrega_real && $fecha->isBefore($this->fecha_entrega_real)) {
+            return 'La fecha de devolución real no puede ser anterior a la fecha de entrega real.';
+        }
+
+        return null;
+    }
+}

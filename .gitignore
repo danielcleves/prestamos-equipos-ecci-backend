@@ -2,6 +2,8 @@
 .DS_Store
 .env
 .env.backup
+.env.backup*
+.env.bak
 .env.production
 .phpactor.json
 .phpunit.result.cache
@@ -25,3 +27,11 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Contexto interno del proyecto: decisiones en discusion y notas del equipo.
+# Se mantiene local, no se versiona.
+CONTEXTO-PROYECTO.md
+
+# Plan personal de funciones DevOps/Desarrollo: incluye la frontera de
+# responsabilidades con el rol formal de DevOps. Se mantiene local.
+PLAN-DEVOPS-Y-DESARROLLO.md
