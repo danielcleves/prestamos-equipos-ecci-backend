@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AsegurarCuentaActiva;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -30,6 +31,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // poder usar 'role:admin' en las rutas.
         $middleware->alias([
             'role' => RoleMiddleware::class,
+            // Cuenta desactivada => 401 aunque el token siga existiendo.
+            'activo' => AsegurarCuentaActiva::class,
         ]);
 
         // Este backend es solo API: no sirve vistas ni tiene ruta 'login'.

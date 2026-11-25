@@ -22,13 +22,15 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::post('/register', [AuthController::class, 'register'])
     ->middleware('throttle:5,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+// 'activo' va siempre junto a auth:sanctum: una cuenta desactivada responde
+// 401 aunque conserve un token (BUG-0005; lo vigila CuentaDesactivadaTest).
+Route::middleware(['auth:sanctum', 'activo'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 });
 
 // HU-02: gestion de usuarios y roles, exclusiva del rol admin.
-Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'activo', 'role:admin'])->group(function () {
     Route::apiResource('usuarios', UserController::class)
         ->except('destroy')
         ->parameters(['usuarios' => 'usuario']);
@@ -49,7 +51,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 
 // HU-03: catalogo de equipos. Consultar es para cualquier autenticado (lo
 // va a necesitar HU-05 mas adelante); registrar es exclusivo de admin.
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'activo'])->group(function () {
     Route::get('/equipos', [EquipoController::class, 'index']);
     Route::get('/equipos/{equipo}', [EquipoController::class, 'show']);
     Route::get('/equipos/{equipo}/historial', [EquipoController::class, 'historial']);
@@ -57,7 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Escritura sobre el catalogo, exclusiva de admin: registrar (HU-03) y
 // cambiar el estado (HU-04).
-Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+Route::middleware(['auth:sanctum', 'activo', 'role:admin'])->group(function () {
     Route::post('/equipos', [EquipoController::class, 'store']);
     Route::patch('/equipos/{equipo}/estado', [EquipoController::class, 'actualizarEstado']);
 });
@@ -70,7 +72,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
 // - HU-08: aprobación y rechazo de solicitudes
 // - HU-09: registro de entrega
 // - HU-11: registro de devolución
-Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
+Route::middleware(['auth:sanctum', 'activo', 'role:admin|encargado'])->group(function () {
     Route::get('/equipos/{equipo}/revisiones', [EquipoController::class, 'revisiones']);
     Route::get('/prestamos/activos', [PrestamoController::class, 'activos']);
     // HU-07: solicitudes pendientes de gestion. Igual que /activos, va
@@ -90,7 +92,7 @@ Route::middleware(['auth:sanctum', 'role:admin|encargado'])->group(function () {
 });
 
 // HU-06: Solicitud y consulta de préstamos (cualquier rol autenticado).
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'activo'])->group(function () {
     Route::get('/prestamos', [PrestamoController::class, 'index']);
     Route::post('/prestamos', [PrestamoController::class, 'store'])
         ->middleware('throttle:10,1');

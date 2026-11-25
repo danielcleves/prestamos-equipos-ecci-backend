@@ -10,6 +10,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
@@ -94,7 +95,15 @@ class UserController extends Controller
             ], 422);
         }
 
-        $usuario->update(['is_active' => false]);
+        DB::transaction(function () use ($usuario) {
+            $usuario->update(['is_active' => false]);
+
+            // Sanctum no vence los tokens (sanctum.expiration = null): sin
+            // revocarlos, la cuenta desactivada seguía operando con la sesión
+            // que ya tenía abierta. El middleware 'activo' es la segunda
+            // barrera por si quedara alguno.
+            $usuario->tokens()->delete();
+        });
 
         return response()->json(['data' => new UserResource($usuario)]);
     }

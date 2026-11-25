@@ -2,6 +2,7 @@
 
 return [
     'no_autenticado' => 'No autenticado.',
+    'cuenta_desactivada' => 'Tu cuenta está desactivada. Contacta a un administrador.',
     'prohibido' => 'No tienes permiso para realizar esta acción.',
     'no_encontrado' => 'Recurso no encontrado.',
     'metodo_no_permitido' => 'Método no permitido.',
