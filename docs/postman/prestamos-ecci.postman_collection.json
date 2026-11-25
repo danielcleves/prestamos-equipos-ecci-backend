@@ -1,0 +1,515 @@
+{
+  "info": {
+    "name": "Préstamos Equipos ECCI — API",
+    "description": "Colección de la API de préstamos de equipos ECCI.\n\n## Cómo usarla\n\n1. Levanta el entorno: `docker compose up -d` y siembra con `php artisan db:seed`.\n2. Ejecuta **Auth > Login (admin)**. El token se guarda solo en la variable `token` y el resto de peticiones lo usan automáticamente.\n3. La carpeta **HU-12 · Flujo completo** está pensada para correrse en orden con el Collection Runner: cada paso guarda los ids que necesita el siguiente.\n\n## Variables\n\n- `base_url`: `http://127.0.0.1:8000/api`\n- `token`: lo llena el login\n- `categoria_id`: 1 (`Portátil`), 2 (`Tablet`), 3 (`De mesa`) según `CategoriaSeeder`. No hay endpoint de categorías todavía.\n- `equipo_id`, `prestamo_id`: los llenan los pasos del flujo.\n\n## Credenciales sembradas\n\n`test@example.com` / `password` — rol admin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api" },
+    { "key": "token", "value": "" },
+    { "key": "categoria_id", "value": "1" },
+    { "key": "equipo_id", "value": "" },
+    { "key": "prestamo_id", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Fechas válidas para el negocio, en ISO 8601 con Z (sin ambigüedad de zona).",
+          "// FechaNegocio acepta este formato y lo normaliza a UTC.",
+          "const ahora = new Date();",
+          "pm.collectionVariables.set('fecha_inicio', new Date(ahora.getTime() + 60*60*1000).toISOString());",
+          "pm.collectionVariables.set('fecha_devolucion_estimada', new Date(ahora.getTime() + 48*60*60*1000).toISOString());",
+          "// Código único para no chocar con el índice unique de equipos.codigo",
+          "pm.collectionVariables.set('codigo_equipo', 'EQ-' + Date.now().toString().slice(-8));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password\",\n  \"device_name\": \"postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] },
+            "description": "Única ruta sin token. Limitada a 6 intentos por minuto y por IP: si recibes 429, espera un minuto."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "pm.test('devuelve token', () => pm.expect(data.token).to.be.a('string'));",
+                  "pm.collectionVariables.set('token', data.token);",
+                  "console.log('Token guardado. Rol:', data.user.roles.join(','));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/me", "host": ["{{base_url}}"], "path": ["me"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/logout", "host": ["{{base_url}}"], "path": ["logout"] },
+            "description": "Revoca SOLO el token de esta petición; otras sesiones siguen vivas."
+          }
+        },
+        {
+          "name": "Ping (sin token)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/ping", "host": ["{{base_url}}"], "path": ["ping"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Equipos",
+      "item": [
+        {
+          "name": "Listar equipos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/equipos?per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["equipos"],
+              "query": [
+                { "key": "per_page", "value": "15" },
+                { "key": "categoria_id", "value": "1", "disabled": true },
+                { "key": "disponible", "value": "1", "disabled": true },
+                { "key": "buscar", "value": "laptop", "disabled": true },
+                { "key": "ordenar", "value": "disponibles_primero", "disabled": true }
+              ]
+            },
+            "description": "Orden admitido: nombre (default), -nombre, disponibles_primero, recientes.\nLos equipos dados de baja solo los ven admin y encargado."
+          }
+        },
+        {
+          "name": "Detalle de equipo",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/equipos/{{equipo_id}}", "host": ["{{base_url}}"], "path": ["equipos", "{{equipo_id}}"] }
+          }
+        },
+        {
+          "name": "Crear equipo (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigo_equipo}}\",\n  \"nombre\": \"Laptop Dell Latitude\",\n  \"categoria_id\": {{categoria_id}},\n  \"descripcion\": \"Equipo para préstamo a estudiantes\",\n  \"observaciones\": null\n}"
+            },
+            "url": { "raw": "{{base_url}}/equipos", "host": ["{{base_url}}"], "path": ["equipos"] },
+            "description": "El 'estado' NO es campo de entrada: el sistema asigna 'disponible' al registrar."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('nace disponible', () => pm.expect(d.estado).to.eql('disponible'));",
+                  "pm.collectionVariables.set('equipo_id', d.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cambiar estado (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"estado\": \"disponible\"\n}" },
+            "url": { "raw": "{{base_url}}/equipos/{{equipo_id}}/estado", "host": ["{{base_url}}"], "path": ["equipos", "{{equipo_id}}", "estado"] },
+            "description": "Valores: disponible, en_prestamo, mantenimiento, dado_de_baja.\n'dado_de_baja' es TERMINAL: después de eso no admite más cambios."
+          }
+        },
+        {
+          "name": "Historial de estados",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/equipos/{{equipo_id}}/historial", "host": ["{{base_url}}"], "path": ["equipos", "{{equipo_id}}", "historial"] },
+            "description": "Lo ve cualquier autenticado."
+          }
+        },
+        {
+          "name": "Revisiones del equipo (HU-12)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/equipos/{{equipo_id}}/revisiones",
+              "host": ["{{base_url}}"],
+              "path": ["equipos", "{{equipo_id}}", "revisiones"],
+              "query": [{ "key": "con_danos", "value": "1", "disabled": true }]
+            },
+            "description": "Solo admin y encargado: las observaciones de la revisión son reservadas."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuarios (admin)",
+      "item": [
+        {
+          "name": "Listar usuarios",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/usuarios", "host": ["{{base_url}}"], "path": ["usuarios"] }
+          }
+        },
+        {
+          "name": "Crear usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Encargado de Prueba\",\n  \"email\": \"encargado@ecci.edu.co\",\n  \"password\": \"password\",\n  \"role\": \"encargado\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/usuarios", "host": ["{{base_url}}"], "path": ["usuarios"] },
+            "description": "Roles válidos: admin, encargado, usuario. Cada usuario tiene exactamente uno."
+          }
+        },
+        {
+          "name": "Desactivar usuario",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/usuarios/2/desactivar", "host": ["{{base_url}}"], "path": ["usuarios", "2", "desactivar"] },
+            "description": "Un admin NO puede desactivarse a sí mismo (422)."
+          }
+        },
+        {
+          "name": "Activar usuario",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/usuarios/2/activar", "host": ["{{base_url}}"], "path": ["usuarios", "2", "activar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Préstamos",
+      "item": [
+        {
+          "name": "Listar préstamos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/prestamos",
+              "host": ["{{base_url}}"],
+              "path": ["prestamos"],
+              "query": [{ "key": "estado", "value": "entregado", "disabled": true }]
+            },
+            "description": "El rol 'usuario' solo ve los suyos; admin y encargado ven todos.\nEstados: solicitado, aprobado, rechazado, cancelado, entregado, devuelto."
+          }
+        },
+        {
+          "name": "Préstamos activos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/prestamos/activos",
+              "host": ["{{base_url}}"],
+              "path": ["prestamos", "activos"],
+              "query": [{ "key": "buscar", "value": "PORT-001", "disabled": true }]
+            },
+            "description": "Solo los 'entregado'. Busca por código/nombre de equipo o nombre/email del solicitante."
+          }
+        },
+        {
+          "name": "Detalle de préstamo",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/prestamos/{{prestamo_id}}", "host": ["{{base_url}}"], "path": ["prestamos", "{{prestamo_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "HU-12 · Flujo completo",
+      "description": "Secuencia de punta a punta: crear equipo → solicitar → aprobar → entregar → devolver con daños → comprobar la revisión y el bloqueo del equipo.\n\nCórrela en orden con el Collection Runner, después del Login.",
+      "item": [
+        {
+          "name": "1. Crear equipo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{codigo_equipo}}\",\n  \"nombre\": \"Portátil HU-12\",\n  \"categoria_id\": {{categoria_id}},\n  \"descripcion\": \"Equipo para probar el flujo de revisión\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/equipos", "host": ["{{base_url}}"], "path": ["equipos"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('estado inicial disponible', () => pm.expect(d.estado).to.eql('disponible'));",
+                  "pm.collectionVariables.set('equipo_id', d.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Solicitar préstamo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipo_id\": {{equipo_id}},\n  \"motivo\": \"Práctica de laboratorio de redes\",\n  \"fecha_inicio\": \"{{fecha_inicio}}\",\n  \"fecha_devolucion_estimada\": \"{{fecha_devolucion_estimada}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/prestamos", "host": ["{{base_url}}"], "path": ["prestamos"] },
+            "description": "Máximo 3 préstamos activos por usuario y 7 días de duración (config/prestamos.php).\nLimitado a 10 peticiones por minuto."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('nace solicitado', () => pm.expect(d.estado).to.eql('solicitado'));",
+                  "pm.test('aun no hay revision', () => pm.expect(d.revision).to.eql(null));",
+                  "pm.collectionVariables.set('prestamo_id', d.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Aprobar",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/prestamos/{{prestamo_id}}/aprobacion", "host": ["{{base_url}}"], "path": ["prestamos", "{{prestamo_id}}", "aprobacion"] },
+            "description": "La aprobación NO cambia el estado del equipo: eso pasa en la entrega."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('queda aprobado', () => pm.expect(pm.response.json().data.estado).to.eql('aprobado'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Registrar entrega",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"condicion_entrega\": \"bueno\",\n  \"observaciones\": \"Entregado con cargador y maletín\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/prestamos/{{prestamo_id}}/entrega", "host": ["{{base_url}}"], "path": ["prestamos", "{{prestamo_id}}", "entrega"] },
+            "description": "Aquí el equipo pasa a 'en_prestamo'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('queda entregado', () => pm.expect(d.estado).to.eql('entregado'));",
+                  "pm.test('el equipo pasa a en_prestamo', () => pm.expect(d.equipo.estado).to.eql('en_prestamo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Devolver CON DAÑOS",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"condicion_devolucion\": \"con_danos\",\n  \"observaciones\": \"Bisagra rota y rayones en la tapa\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/prestamos/{{prestamo_id}}/devolucion", "host": ["{{base_url}}"], "path": ["prestamos", "{{prestamo_id}}", "devolucion"] },
+            "description": "Las observaciones son OBLIGATORIAS cuando la condición no es 'bueno'.\nAquí se crea la revisión (HU-12) en la misma transacción, y el equipo pasa a 'mantenimiento'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('queda devuelto', () => pm.expect(d.estado).to.eql('devuelto'));",
+                  "pm.test('se creó la revisión', () => pm.expect(d.revision).to.not.eql(null));",
+                  "pm.test('la revisión marca daños', () => pm.expect(d.revision.tiene_danos).to.eql(true));",
+                  "pm.test('el equipo queda en mantenimiento', () => pm.expect(d.equipo.estado).to.eql('mantenimiento'));",
+                  "console.log('Revisión id:', d.revision.id, '| condición:', d.revision.condicion);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Ver la revisión en el préstamo",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/prestamos/{{prestamo_id}}", "host": ["{{base_url}}"], "path": ["prestamos", "{{prestamo_id}}"] },
+            "description": "La revisión se conserva después de cerrado el préstamo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json().data.revision;",
+                  "pm.test('la revisión sigue ahí', () => pm.expect(r).to.not.eql(null));",
+                  "pm.test('incidencia_id reservado para HU-31', () => pm.expect(r.incidencia_id).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Revisiones del equipo",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/equipos/{{equipo_id}}/revisiones?con_danos=1",
+              "host": ["{{base_url}}"],
+              "path": ["equipos", "{{equipo_id}}", "revisiones"],
+              "query": [{ "key": "con_danos", "value": "1" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json().data;",
+                  "pm.test('aparece la revisión con daños', () => pm.expect(data.length).to.be.above(0));",
+                  "pm.test('ligada a este préstamo', () => pm.expect(String(data[0].prestamo_id)).to.eql(String(pm.collectionVariables.get('prestamo_id'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. El equipo dañado NO se puede solicitar",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipo_id\": {{equipo_id}},\n  \"motivo\": \"Intento de solicitar un equipo en mantenimiento\",\n  \"fecha_inicio\": \"{{fecha_inicio}}\",\n  \"fecha_devolucion_estimada\": \"{{fecha_devolucion_estimada}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/prestamos", "host": ["{{base_url}}"], "path": ["prestamos"] },
+            "description": "Debe responder 422: el equipo quedó bloqueado en mantenimiento por la revisión (KAN-129)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 rechazado', () => pm.response.to.have.status(422));",
+                  "const e = pm.response.json().errors;",
+                  "pm.test('explica el mantenimiento', () => pm.expect(e.equipo_id[0]).to.include('mantenimiento'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
