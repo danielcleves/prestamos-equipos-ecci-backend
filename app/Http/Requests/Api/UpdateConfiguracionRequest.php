@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Categoria;
 use App\Models\Rol;
 use App\Services\Parametros;
 use Illuminate\Contracts\Validation\Validator;
@@ -116,6 +117,10 @@ class UpdateConfiguracionRequest extends FormRequest
             return $this->erroresCorreosPermitidos($valor);
         }
 
+        if ($clave === 'duracion.categorias') {
+            return $this->erroresDuracionCategorias($valor);
+        }
+
         if ($clave === 'duracion.roles_extra') {
             $existentes = Rol::query()->pluck('name')->all();
 
@@ -126,8 +131,7 @@ class UpdateConfiguracionRequest extends FormRequest
             }
         }
 
-        // duracion.categorias y duracion.roles_extra son mapas de
-        // nombre/id a número de días o de cupos.
+        // duracion.roles_extra es un mapa «rol => días extra» (0 es válido).
         foreach ($valor as $nombre => $numero) {
             if (! $this->esEnteroNoNegativo($numero)) {
                 return ["El valor de «{$nombre}» en «{$clave}» debe ser un entero mayor o igual a cero."];
@@ -223,6 +227,98 @@ class UpdateConfiguracionRequest extends FormRequest
 
             if (! isset($tramo['dias_sancion']) || ! $this->esEnteroNoNegativo($tramo['dias_sancion'])) {
                 return ["El tramo {$indice} debe tener «dias_sancion» como entero mayor o igual a cero."];
+            }
+
+            if ($tramo['hasta'] !== null && (int) $tramo['hasta'] < (int) $tramo['desde']) {
+                return ["El tramo «{$tramo['desde']}–{$tramo['hasta']}» de la escala de mora tiene «hasta» menor que «desde»."];
+            }
+        }
+
+        return $this->erroresCoberturaEscala($escala);
+    }
+
+    /**
+     * BUG-0007: la escala debe cubrir todos los retrasos sin ambigüedad. Una
+     * vez ordenados por «desde», los tramos tienen que empezar en el día 1,
+     * ser contiguos (cada uno empieza el día siguiente al «hasta» del
+     * anterior), no solaparse, y el último debe quedar abierto («hasta»
+     * null), de modo que ningún retraso se quede sin tramo. Un periodo de
+     * gracia se expresa con dias_sancion = 0, no dejando un hueco.
+     *
+     * @param  array<int, array{desde: mixed, hasta: mixed, dias_sancion: mixed}>  $escala
+     * @return array<int, string>
+     */
+    private function erroresCoberturaEscala(array $escala): array
+    {
+        $tramos = array_values($escala);
+        usort($tramos, fn (array $a, array $b) => (int) $a['desde'] <=> (int) $b['desde']);
+
+        $etiqueta = fn (array $t) => $t['hasta'] === null
+            ? "{$t['desde']} en adelante"
+            : "{$t['desde']}–{$t['hasta']}";
+
+        if ((int) $tramos[0]['desde'] !== 1) {
+            return ["La escala de mora debe empezar en 1 día de retraso (el primer tramo empieza en {$tramos[0]['desde']}). Para un periodo de gracia usa un tramo con 0 días de sanción."];
+        }
+
+        for ($i = 1, $total = count($tramos); $i < $total; $i++) {
+            $anterior = $tramos[$i - 1];
+            $actual = $tramos[$i];
+
+            if ($anterior['hasta'] === null) {
+                return ["Solo el último tramo de la escala de mora puede quedar abierto: el tramo «{$etiqueta($anterior)}» se solapa con «{$etiqueta($actual)}»."];
+            }
+
+            $esperado = (int) $anterior['hasta'] + 1;
+            $desde = (int) $actual['desde'];
+
+            if ($desde <= (int) $anterior['hasta']) {
+                return ["Los tramos «{$etiqueta($anterior)}» y «{$etiqueta($actual)}» de la escala de mora se solapan."];
+            }
+
+            if ($desde > $esperado) {
+                $hueco = $desde - 1 === $esperado ? "{$esperado}" : "{$esperado}–".($desde - 1);
+
+                return ["La escala de mora tiene un hueco: los retrasos de {$hueco} día(s) no quedan en ningún tramo."];
+            }
+        }
+
+        // El último tramo debe quedar abierto: si se cierra (por ejemplo
+        // 1–2 y 3–5), un retraso de 6 días se quedaría sin sanción, que es el
+        // mismo defecto que un hueco interior. Para no sancionar a partir de
+        // cierto día se usa un tramo abierto con dias_sancion = 0.
+        $ultimo = $tramos[count($tramos) - 1];
+
+        if ($ultimo['hasta'] !== null) {
+            return ["La escala de mora debe terminar en un tramo abierto («hasta» null) para que ningún retraso quede sin tramo: «{$etiqueta($ultimo)}» deja fuera los retrasos mayores. Si a partir de ahí no corresponde sanción, usa un tramo abierto con 0 días de sanción."];
+        }
+
+        return [];
+    }
+
+    /**
+     * BUG-0008: «duracion.categorias» es un mapa «id de categoría => días». La
+     * categoría debe existir y la duración ser de al menos un día (con 0 la
+     * solicitud quedaría imposible de crear).
+     *
+     * @param  array<mixed>  $valor
+     * @return array<int, string>
+     */
+    private function erroresDuracionCategorias(array $valor): array
+    {
+        if ($valor === []) {
+            return ['El parámetro «duracion.categorias» debe ser un objeto «id de categoría => días».'];
+        }
+
+        $existentes = Categoria::query()->pluck('id')->map(fn ($id) => (string) $id)->all();
+
+        foreach ($valor as $id => $dias) {
+            if (! in_array((string) $id, $existentes, true)) {
+                return ["La categoría con id «{$id}» no existe."];
+            }
+
+            if (! $this->esEnteroNoNegativo($dias) || (int) $dias < 1) {
+                return ["La duración de la categoría «{$id}» debe ser un entero mayor o igual a 1 día."];
             }
         }
 

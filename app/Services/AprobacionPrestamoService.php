@@ -58,6 +58,16 @@ class AprobacionPrestamoService
             // el préstamo para no decidir con datos viejos de la petición.
             $prestamoFresco = Prestamo::whereKey($prestamo->getKey())->lockForUpdate()->firstOrFail();
 
+            // Control de dos personas (RN-03): un equipo restringido no puede
+            // aprobarlo quien lo solicitó, ni siquiera si ya lo autorizó otro
+            // miembro del personal.
+            if ($prestamoFresco->requiere_autorizacion
+                && (int) $prestamoFresco->usuario_id === (int) $personal->id) {
+                throw ValidationException::withMessages([
+                    'prestamo' => 'No puedes aprobar tu propia solicitud de un equipo restringido: debe aprobarla otro miembro del personal.',
+                ]);
+            }
+
             if ($prestamoFresco->requiere_autorizacion && $prestamoFresco->autorizado_por === null) {
                 throw ValidationException::withMessages([
                     'prestamo' => 'Este préstamo requiere autorización especial antes de aprobarse.',

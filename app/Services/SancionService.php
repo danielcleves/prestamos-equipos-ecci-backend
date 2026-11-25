@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Prestamo;
 use App\Models\Sancion;
+use App\Support\FechaNegocio;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -56,12 +57,22 @@ class SancionService
     }
 
     /**
-     * Días de calendario de retraso. Si la devolución es el mismo día pero
-     * más tarde que la hora estimada, cuenta como un día.
+     * Días de calendario de retraso, contados en la zona horaria de negocio
+     * (America/Bogota). Si la devolución es el mismo día pero más tarde que
+     * la hora estimada, cuenta como un día.
+     *
+     * BUG-0006: antes se tomaba startOfDay() sobre las fechas en UTC, de modo
+     * que el cambio de día ocurría a las 19:00 de Bogotá y un retraso de 3
+     * días calendario (10 dic 23:59 → 13 dic 00:30) se contaba como 2.
      */
     private function diasDeRetraso(CarbonInterface $estimada, CarbonInterface $devolucion): int
     {
-        $dias = (int) abs($estimada->copy()->startOfDay()->diffInDays($devolucion->copy()->startOfDay()));
+        $zona = FechaNegocio::zonaNegocio();
+
+        $diaEstimado = $estimada->copy()->setTimezone($zona)->startOfDay();
+        $diaDevolucion = $devolucion->copy()->setTimezone($zona)->startOfDay();
+
+        $dias = (int) round(abs($diaEstimado->diffInDays($diaDevolucion)));
 
         return max(1, $dias);
     }
