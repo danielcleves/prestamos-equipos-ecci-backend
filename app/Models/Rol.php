@@ -74,6 +74,16 @@ class Rol extends Role
     /** Nombres reservados que un rol de solicitante no puede usar. */
     public const RESERVADOS = ['admin', 'encargado', 'usuario', 'administrador'];
 
+    /**
+     * Nombres de los roles existentes, ordenados, para mensajes de validación.
+     *
+     * @return list<string>
+     */
+    public static function nombresDisponibles(): array
+    {
+        return static::query()->orderBy('name')->pluck('name')->all();
+    }
+
     public function esSistema(): bool
     {
         return in_array($this->name, self::SISTEMA, true);

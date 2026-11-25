@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api;
 
+use App\Models\Rol;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -26,6 +27,23 @@ class StoreUserRequest extends FormRequest
             'role' => ['required', 'string', Rule::exists('roles', 'name')],
             // RN-01: requisito de capacitación (por defecto, capacitado).
             'capacitado' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * Un cliente con la lista de roles desactualizada (p. ej. una pestaña
+     * abierta desde antes de un despliegue) ve qué nombres acepta el backend.
+     *
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        $disponibles = Rol::nombresDisponibles();
+
+        return [
+            'role.exists' => $disponibles === []
+                ? 'El rol «:input» no existe.'
+                : 'El rol «:input» no existe. Roles disponibles: '.implode(', ', $disponibles).'.',
         ];
     }
 }
